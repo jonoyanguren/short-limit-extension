@@ -1,0 +1,47 @@
+{
+    "manifest_version": 3,
+    "name": "Límite Diario de Contenido",
+    "version": "1.0",
+    "description": "Limita la cantidad diaria de contenidos cortos que puedes ver en YouTube, Instagram y TikTok.",
+    "permissions": [
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://*.youtube.com/*",
+        "https://*.instagram.com/*",
+        "https://*.tiktok.com/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "48": "icon.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://*.youtube.com/*",
+                "https://*.instagram.com/*",
+                "https://*.tiktok.com/*"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "limit-reached.html",
+                "limit-reached.js"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ]
+}
