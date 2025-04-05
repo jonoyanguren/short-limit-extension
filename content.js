@@ -218,6 +218,13 @@ function getContentId() {
             return `instagram-reel-${reelMatch[1]}`;
         }
 
+        // New pattern for /reels/ format URLs
+        const reelsUrlMatch = location.pathname.match(/\/reels\/([^/?]+)/);
+        if (reelsUrlMatch && reelsUrlMatch[1]) {
+            console.log("[Extension] Matched Instagram reels URL format:", reelsUrlMatch[1]);
+            return `instagram-reel-${reelsUrlMatch[1]}`;
+        }
+
         // 2. Pattern for user Stories
         const storiesMatch = location.pathname.match(/\/stories\/([^/?]+)/);
         if (storiesMatch && storiesMatch[1]) {
@@ -343,6 +350,12 @@ function detectInstagramMultimedia() {
     try {
         // Check for Reels
         if (location.pathname.includes('/reel/')) {
+            return true;
+        }
+
+        // Check for alternate Reels URL format
+        if (location.pathname.includes('/reels/')) {
+            console.log("[Extension] Detected Instagram reels format URL:", location.pathname);
             return true;
         }
 
@@ -1051,6 +1064,7 @@ try {
             const esNavegacion =
                 event.target.closest('[role="button"]') ||
                 event.target.closest('a[href*="/reel/"]') ||
+                event.target.closest('a[href*="/reels/"]') || // Nuevo formato de URL para reels
                 event.target.closest('a[href*="/p/"]') ||
                 event.target.closest('svg') || // Muchos botones en Instagram son SVGs
                 event.target.closest('[aria-label*="Next"]') ||
