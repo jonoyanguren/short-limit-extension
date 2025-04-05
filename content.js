@@ -59,6 +59,15 @@ function verificarContexto() {
                     console.log("[Extension] Error al desconectar observer de Instagram:", e.message);
                 }
             }
+
+            // Limpiar el observer de YouTube si existe
+            if (window._extensionYouTubeObserver) {
+                try {
+                    window._extensionYouTubeObserver.disconnect();
+                } catch (e) {
+                    console.log("[Extension] Error al desconectar observer de YouTube:", e.message);
+                }
+            }
         } catch (cleanupError) {
             console.log("[Extension] Error al liberar recursos:", cleanupError.message);
         }
@@ -250,7 +259,53 @@ function getContentId() {
 
 // Simplificar la verificación para YouTube
 function esYoutubeShort() {
-    return dominio.includes('youtube.com') && location.pathname.includes('/shorts/');
+    // Verificación directa basada en URL
+    const esShortURL = dominio.includes('youtube.com') && location.pathname.includes('/shorts/');
+
+    // Si estamos en YouTube, loguear información de debug
+    if (dominio.includes('youtube.com')) {
+        console.log("[Extension] Verificando YouTube:", location.href);
+        console.log("[Extension] Pathname YouTube:", location.pathname);
+        console.log("[Extension] ¿Es YouTube Short URL?", esShortURL);
+
+        // Si la URL es de shorts, considerarlo un short independientemente de la interfaz
+        if (esShortURL) {
+            return true;
+        }
+
+        // Verificar también la presencia de elementos específicos de Shorts
+        const esInterfazShorts =
+            document.querySelector('ytd-shorts') ||
+            document.querySelector('ytd-reel-video-renderer') ||
+            document.querySelector('[page-subtype="shorts"]') ||
+            document.querySelector('ytd-shorts-video-renderer');
+
+        console.log("[Extension] ¿Encontrados elementos de Shorts UI?", !!esInterfazShorts);
+
+        if (esInterfazShorts) {
+            return true;
+        }
+
+        // Si hay videos, verificar si parecen ser Shorts por su tamaño
+        const videos = document.querySelectorAll('video');
+        if (videos.length > 0) {
+            const hayVideoVertical = Array.from(videos).some(video => {
+                if (!isElementVisible(video)) return false;
+                // Los Shorts suelen ser videos verticales (más altos que anchos)
+                return video.offsetHeight > video.offsetWidth && video.offsetHeight > 0;
+            });
+            console.log("[Extension] Videos encontrados:", videos.length);
+            console.log("[Extension] ¿Hay video vertical (posible Short)?", hayVideoVertical);
+
+            // Si tenemos un video vertical visible, es probable que sea un Short
+            if (hayVideoVertical) {
+                console.log("[Extension] Detectado Short por video vertical");
+                return true;
+            }
+        }
+    }
+
+    return esShortURL;
 }
 
 // Detecta cualquier contenido multimedia en Instagram
@@ -454,6 +509,22 @@ function verificarContenido() {
             });
         }
 
+        // Debug especial para YouTube
+        if (dominio.includes('youtube.com')) {
+            console.log("[Extension] Verificando YouTube - URL:", location.href);
+            const videos = document.querySelectorAll('video');
+            console.log("[Extension] Videos en YouTube:", videos.length);
+            videos.forEach((video, idx) => {
+                console.log(`[Extension] Video YouTube ${idx}:`, {
+                    src: video.src || video.currentSrc || 'sin-src',
+                    visible: isElementVisible(video),
+                    width: video.offsetWidth,
+                    height: video.offsetHeight,
+                    esVertical: video.offsetHeight > video.offsetWidth
+                });
+            });
+        }
+
         // Identificador único para este contenido
         const contentId = getContentId();
         console.log("[Extension] ID de contenido generado:", contentId);
@@ -503,10 +574,14 @@ function verificarContenido() {
         console.log("[Extension] ¿Es contenido limitado?", esContenidoLimitado);
 
         if (esContenidoLimitado) {
+            console.log("[Extension] Enviando mensaje para incrementar contador de: " + dominio);
             enviarMensajeSeguro({ action: 'incrementarContador', sitio: dominio }, (response) => {
                 checking = false;
 
-                if (!response) return; // Error o contexto inválido
+                if (!response) {
+                    console.log("[Extension] No se recibió respuesta al incrementar contador");
+                    return; // Error o contexto inválido
+                }
 
                 // Marcar el contenido como contabilizado
                 countedContent.add(contentId);
@@ -568,6 +643,14 @@ function verificarContenido() {
             if (window._extensionInstagramObserver) {
                 try {
                     window._extensionInstagramObserver.disconnect();
+                } catch (e) {
+                    // Ignorar errores al desconectar
+                }
+            }
+
+            if (window._extensionYouTubeObserver) {
+                try {
+                    window._extensionYouTubeObserver.disconnect();
                 } catch (e) {
                     // Ignorar errores al desconectar
                 }
@@ -754,6 +837,12 @@ try {
                 window._extensionInstagramObserver.disconnect();
             } catch (e) { }
         }
+
+        if (window._extensionYouTubeObserver) {
+            try {
+                window._extensionYouTubeObserver.disconnect();
+            } catch (e) { }
+        }
     });
 
     // Iniciar observador principal
@@ -865,26 +954,97 @@ try {
 
     // Para YouTube, agregar manejadores específicos para botones de navegación
     if (dominio.includes('youtube.com')) {
+        console.log("[Extension] Inicializando manejadores específicos para YouTube");
+
+        // Verificación inicial de YouTube Shorts - verificar inmediatamente
+        setTimeout(() => {
+            if (esYoutubeShort()) {
+                console.log("[Extension] Verificación inicial de YouTube Short");
+                verificarContenido();
+            }
+        }, 1000);
+
         // Verificar cuando se hace clic en botones de navegación de shorts
         document.addEventListener('click', (event) => {
-            if (!verificarContexto() || checking || redirectInProgress) return;
+            if (!verificarContexto() || redirectInProgress) return;
+
+            // Log para cualquier clic en YouTube
+            console.log("[Extension] Clic en YouTube en elemento:", event.target.tagName);
 
             // Buscar botones de navegación de shorts (siguiente, anterior)
             const esBotonNavegacion =
                 event.target.closest('button[aria-label*="Next"]') ||
                 event.target.closest('button[aria-label*="Previous"]') ||
-                event.target.closest('ytd-reel-video-renderer');
+                event.target.closest('ytd-shorts-compact-video-renderer') ||  // Miniatura de Short
+                event.target.closest('ytd-reel-video-renderer') ||          // Video de Short
+                event.target.closest('a[href*="/shorts/"]') ||              // Enlaces a Shorts
+                event.target.closest('ytd-shorts-video-renderer');          // Renderer de Short
 
             if (esBotonNavegacion) {
+                console.log("[Extension] Detectado clic en navegación de YouTube");
                 // Dar tiempo para que cambie la URL
                 setTimeout(() => {
-                    if (esYoutubeShort()) {
-                        console.log("[Extension] Detectada navegación entre shorts");
-                        verificarContenido();
-                    }
-                }, 1000);
+                    // Verificar después de dar tiempo al cambio de URL
+                    console.log("[Extension] Verificando después de clic en navegación");
+                    verificarContenido();
+                }, 800);
             }
         }, true);
+
+        // También monitorear las actualizaciones de la URL (YouTube usa mucho history.pushState)
+        let lastYoutubeURL = location.href;
+        setInterval(() => {
+            if (!verificarContexto()) return;
+
+            if (lastYoutubeURL !== location.href) {
+                console.log("[Extension] Cambio de URL en YouTube detectado:");
+                console.log("  Anterior: " + lastYoutubeURL);
+                console.log("  Nueva: " + location.href);
+
+                lastYoutubeURL = location.href;
+
+                // Verificar después de un breve retraso para cualquier cambio de URL
+                setTimeout(verificarContenido, 800);
+            }
+        }, 500);
+
+        // Monitorear la reproducción de videos
+        document.addEventListener('play', (event) => {
+            if (event.target.tagName === 'VIDEO' && !redirectInProgress) {
+                console.log("[Extension] Video de YouTube iniciado");
+                setTimeout(verificarContenido, 500);
+            }
+        }, true);
+
+        // Observador simplificado para YouTube - enfocado en videos
+        const youtubeObserver = new MutationObserver(() => {
+            if (!verificarContexto() || redirectInProgress) return;
+
+            // Verificar en shorts
+            if (esYoutubeShort()) {
+                console.log("[Extension] Cambios detectados en YouTube, verificando contenido");
+                setTimeout(verificarContenido, 800);
+            }
+        });
+
+        // Observar el body para detectar cualquier cambio
+        youtubeObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Almacenar el observer para limpieza
+        window._extensionYouTubeObserver = youtubeObserver;
+
+        // Verificar regularmente en shorts - solución alternativa por si fallan los otros métodos
+        setInterval(() => {
+            if (!verificarContexto() || redirectInProgress) return;
+
+            if (esYoutubeShort() && !checking) {
+                console.log("[Extension] Verificación periódica de shorts");
+                verificarContenido();
+            }
+        }, 3000);
     }
 
     // Para TikTok, agregar manejadores específicos para controles de navegación
