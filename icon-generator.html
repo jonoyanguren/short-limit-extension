@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Icon Generator</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f5f5f5;
+        font-family: system-ui, sans-serif;
+      }
+      .icon-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .icon-wrapper {
+        position: relative;
+        width: 128px;
+        height: 128px;
+        margin: 20px;
+        border-radius: 24px;
+        background: #4f46e5;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .icon {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .timer {
+        width: 64px;
+        height: 64px;
+        border: 6px solid #fff;
+        border-radius: 50%;
+        position: relative;
+      }
+      .timer::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 30px;
+        height: 4px;
+        background: #fff;
+        transform: translate(-50%, -50%) rotate(0deg);
+        transform-origin: 0% 50%;
+        animation: rotate 5s linear infinite;
+      }
+      .timer::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 20px;
+        height: 4px;
+        background: #fff;
+        transform: translate(-50%, -50%) rotate(90deg);
+        transform-origin: 0% 50%;
+        animation: rotate-fast 40s linear infinite;
+      }
+      .slash {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .slash::after {
+        content: "";
+        position: absolute;
+        top: -10%;
+        left: 50%;
+        width: 8px;
+        height: 120%;
+        background: #ef4444;
+        transform: translateX(-50%) rotate(45deg);
+      }
+      .download-btn {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s ease;
+      }
+      .download-btn:hover {
+        background: #4338ca;
+      }
+      @keyframes rotate {
+        0% {
+          transform: translate(-50%, -50%) rotate(0deg);
+        }
+        100% {
+          transform: translate(-50%, -50%) rotate(360deg);
+        }
+      }
+      @keyframes rotate-fast {
+        0% {
+          transform: translate(-50%, -50%) rotate(90deg);
+        }
+        100% {
+          transform: translate(-50%, -50%) rotate(450deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="icon-container">
+      <div class="icon-wrapper">
+        <div class="icon">
+          <div class="timer"></div>
+          <div class="slash"></div>
+        </div>
+      </div>
+      <button class="download-btn" id="downloadSvg">Download SVG</button>
+    </div>
+
+    <script>
+      document
+        .getElementById("downloadSvg")
+        .addEventListener("click", function () {
+          // Create SVG
+          const svgNS = "http://www.w3.org/2000/svg";
+          const svg = document.createElementNS(svgNS, "svg");
+          svg.setAttribute("width", "128");
+          svg.setAttribute("height", "128");
+          svg.setAttribute("viewBox", "0 0 128 128");
+
+          // Background
+          const background = document.createElementNS(svgNS, "rect");
+          background.setAttribute("width", "128");
+          background.setAttribute("height", "128");
+          background.setAttribute("rx", "24");
+          background.setAttribute("fill", "#4f46e5");
+
+          // Timer circle
+          const circle = document.createElementNS(svgNS, "circle");
+          circle.setAttribute("cx", "64");
+          circle.setAttribute("cy", "64");
+          circle.setAttribute("r", "32");
+          circle.setAttribute("fill", "none");
+          circle.setAttribute("stroke", "#ffffff");
+          circle.setAttribute("stroke-width", "6");
+
+          // Clock hands
+          const hourHand = document.createElementNS(svgNS, "line");
+          hourHand.setAttribute("x1", "64");
+          hourHand.setAttribute("y1", "64");
+          hourHand.setAttribute("x2", "64");
+          hourHand.setAttribute("y2", "44");
+          hourHand.setAttribute("stroke", "#ffffff");
+          hourHand.setAttribute("stroke-width", "4");
+
+          const minuteHand = document.createElementNS(svgNS, "line");
+          minuteHand.setAttribute("x1", "64");
+          minuteHand.setAttribute("y1", "64");
+          minuteHand.setAttribute("x2", "84");
+          minuteHand.setAttribute("y2", "64");
+          minuteHand.setAttribute("stroke", "#ffffff");
+          minuteHand.setAttribute("stroke-width", "4");
+
+          // Red slash
+          const slashGroup = document.createElementNS(svgNS, "g");
+
+          const slash = document.createElementNS(svgNS, "rect");
+          slash.setAttribute("x", "60");
+          slash.setAttribute("y", "24");
+          slash.setAttribute("width", "8");
+          slash.setAttribute("height", "80");
+          slash.setAttribute("fill", "#ef4444");
+          slash.setAttribute("transform", "rotate(45, 64, 64)");
+
+          slashGroup.appendChild(slash);
+
+          // Add all elements to SVG
+          svg.appendChild(background);
+          svg.appendChild(circle);
+          svg.appendChild(hourHand);
+          svg.appendChild(minuteHand);
+          svg.appendChild(slashGroup);
+
+          // Convert SVG to string
+          const serializer = new XMLSerializer();
+          let svgString = serializer.serializeToString(svg);
+          svgString =
+            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' +
+            svgString;
+
+          // Create download link
+          const link = document.createElement("a");
+          const blob = new Blob([svgString], { type: "image/svg+xml" });
+          const url = URL.createObjectURL(blob);
+          link.href = url;
+          link.download = "icon.svg";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+    </script>
+  </body>
+</html>

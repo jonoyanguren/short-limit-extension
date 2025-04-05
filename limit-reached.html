@@ -1,110 +1,228 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Limit Reached</title>
+    <link rel="icon" href="icons/icon48.png" type="image/png" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --primary-color: #4f46e5;
+        --primary-hover: #4338ca;
+        --danger-color: #ef4444;
+        --danger-light: #fee2e2;
+        --secondary-color: #f9fafb;
+        --text-primary: #111827;
+        --text-secondary: #4b5563;
+        --text-tertiary: #6b7280;
+        --border-color: #e5e7eb;
+        --card-bg: #ffffff;
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        --transition: all 0.2s ease;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
       body {
-        font-family: "Arial", sans-serif;
-        background-color: #f5f5f5;
+        font-family: "Inter", system-ui, sans-serif;
+        background-color: var(--secondary-color);
+        background: linear-gradient(to bottom, #f9fafb 0%, #f3f4f6 100%);
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
-        margin: 0;
+        min-height: 100vh;
         padding: 20px;
-        box-sizing: border-box;
-        text-align: center;
+        line-height: 1.5;
+        color: var(--text-primary);
       }
 
       .container {
-        background-color: white;
-        border-radius: 8px;
-        padding: 30px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background-color: var(--card-bg);
+        border-radius: var(--radius-md);
+        padding: 2.5rem;
+        box-shadow: var(--shadow-lg);
         max-width: 500px;
         width: 100%;
+        animation: slideUp 0.4s ease-out;
       }
 
-      h1 {
-        color: #d32f2f;
-        margin-top: 0;
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      .icon-container {
+        width: 80px;
+        height: 80px;
+        background-color: var(--danger-light);
+        color: var(--danger-color);
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto 1.5rem;
+        animation: pulse 2s infinite;
       }
 
       .icon {
-        font-size: 64px;
-        margin-bottom: 20px;
+        font-size: 40px;
+      }
+
+      h1 {
+        color: var(--danger-color);
+        margin-bottom: 1rem;
+        text-align: center;
+        font-weight: 700;
+        font-size: 1.75rem;
+      }
+
+      p {
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+        text-align: center;
       }
 
       .details {
-        margin: 20px 0;
-        padding: 15px;
-        background-color: #f8f8f8;
-        border-radius: 6px;
+        margin: 1.5rem 0;
+        padding: 1.25rem;
+        background-color: var(--secondary-color);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-color);
+      }
+
+      .details p {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
         text-align: left;
       }
 
-      #site,
-      #todayCounter,
-      #limit {
-        font-weight: bold;
+      .details p:last-child {
+        margin-bottom: 0;
+      }
+
+      .details p span {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .time-remaining {
+        color: var(--danger-color) !important;
       }
 
       .suggestion {
-        margin-top: 20px;
-        color: #555;
+        margin: 1.75rem 0;
+        color: var(--text-tertiary);
+        font-size: 0.9rem;
+        text-align: center;
       }
 
       .buttons {
-        margin-top: 30px;
         display: flex;
-        justify-content: center;
+        flex-wrap: wrap;
         gap: 10px;
+        justify-content: center;
       }
 
       button {
-        padding: 10px 20px;
+        padding: 0.75rem 1.25rem;
         border: none;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
-        font-weight: bold;
-        transition: background-color 0.2s;
+        font-weight: 500;
+        font-family: "Inter", system-ui, sans-serif;
+        font-size: 0.9rem;
+        transition: var(--transition);
+      }
+
+      button:active {
+        transform: translateY(1px);
       }
 
       .primary {
-        background-color: #4285f4;
+        background-color: var(--primary-color);
         color: white;
+        flex: 1;
       }
 
       .primary:hover {
-        background-color: #3367d6;
+        background-color: var(--primary-hover);
       }
 
       .secondary {
-        background-color: #e0e0e0;
-        color: #333;
+        background-color: var(--secondary-color);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        flex: 1;
       }
 
       .secondary:hover {
-        background-color: #d2d2d2;
+        background-color: #f3f4f6;
+        color: var(--text-primary);
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          padding: 1.5rem;
+        }
+        .buttons button {
+          width: 100%;
+        }
+        .buttons {
+          flex-direction: column;
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="icon">⏱️</div>
+      <div class="icon-container">
+        <div class="icon">⏱️</div>
+      </div>
       <h1>Daily limit reached!</h1>
       <p>You have reached your daily content limit for this platform.</p>
 
       <div class="details">
         <p>Platform: <span id="site">-</span></p>
         <p>
-          Content viewed today: <span id="todayCounter">-</span>/<span
-            id="limit"
+          Content viewed: <span id="todayCounter">-</span>/<span id="limit"
             >-</span
           >
         </p>
-        <p>Time remaining: <span id="timeRemaining">-</span></p>
+        <p>
+          Reset in: <span id="timeRemaining" class="time-remaining">-</span>
+        </p>
       </div>
 
       <p class="suggestion">
