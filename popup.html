@@ -102,6 +102,63 @@
       button#save {
         margin-top: 12px;
       }
+
+      /* New styles for quick limit buttons */
+      .quick-limits {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .quick-limit-btn {
+        padding: 8px 0;
+        border-radius: 4px;
+        background-color: #e0e0e0;
+        color: #333;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+      }
+
+      .quick-limit-btn:hover {
+        background-color: #4285f4;
+        color: white;
+      }
+
+      .quick-limit-btn.active {
+        background-color: #4285f4;
+        color: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      #custom-form {
+        margin-top: 12px;
+        display: none;
+        border-top: 1px solid #ddd;
+        padding-top: 12px;
+      }
+
+      #show-custom {
+        margin-top: 12px;
+        background-color: #f0f0f0;
+        color: #555;
+      }
+
+      /* New styles for limit section */
+      .limit-section {
+        margin-top: 15px;
+        padding-top: 12px;
+        border-top: 1px solid #ddd;
+      }
+
+      .limit-section h5 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        color: #4285f4;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
@@ -131,16 +188,43 @@
       </div>
 
       <div id="site-details">
-        <label for="current-site" id="current-site">YouTube</label>
+        <h4>Configure Limits for All Platforms</h4>
+
         <label>
+          <strong>Viewing stats for:</strong>
+          <span id="current-site">YouTube</span><br />
           Content viewed today: <span id="counter">0</span>/<span
             id="dailyLimit"
             >10</span
           >
         </label>
-        <label for="limit">Configure limit:</label>
-        <input type="number" id="limit" min="1" value="10" class="full-width" />
-        <button id="save" class="full-width">Save limit</button>
+
+        <div class="limit-section">
+          <h5>Set limits for ALL platforms:</h5>
+          <!-- Quick limit buttons -->
+          <div class="quick-limits">
+            <button class="quick-limit-btn" data-limit="5">5</button>
+            <button class="quick-limit-btn" data-limit="20">20</button>
+            <button class="quick-limit-btn" data-limit="50">50</button>
+            <button class="quick-limit-btn" data-limit="100">100</button>
+          </div>
+
+          <button id="show-custom" class="full-width">Show custom limit</button>
+
+          <!-- Custom limit form (hidden by default) -->
+          <div id="custom-form" style="display: none">
+            <label for="limit">Set custom limit for all platforms:</label>
+            <input
+              type="number"
+              id="limit"
+              min="1"
+              value="10"
+              class="full-width"
+            />
+            <button id="save" class="full-width">Apply to all platforms</button>
+          </div>
+        </div>
+
         <p id="status"></p>
       </div>
     </div>

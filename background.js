@@ -179,16 +179,67 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
         });
         return true; // Important for asynchronous responses
-    } else if (request.action === 'updateLimit') {
+    } else if (request.action === 'updateAllLimits') {
+        console.log("[Extension] Updating ALL limits at once to:", request.newLimit);
+
         chrome.storage.sync.get(['limits'], (data) => {
             try {
                 if (!data.limits) data.limits = {};
-                data.limits[request.site] = request.newLimit;
+                const oldLimits = { ...data.limits };
 
-                console.log("[Extension] Limit updated:", request.site, request.newLimit);
+                // Update all specified sites
+                const sites = request.sites || ['youtube.com', 'instagram.com', 'tiktok.com'];
+                sites.forEach(site => {
+                    data.limits[site] = request.newLimit;
+                });
+
+                console.log("[Extension] All limits updated:",
+                    "Old values:", JSON.stringify(oldLimits),
+                    "New values:", JSON.stringify(data.limits));
 
                 chrome.storage.sync.set({ limits: data.limits }, () => {
-                    respondSafely(sendResponse, { success: true });
+                    const response = {
+                        success: true,
+                        updatedSites: sites,
+                        newLimit: request.newLimit,
+                        allLimits: data.limits
+                    };
+                    console.log("[Extension] Sending response for updateAllLimits:", response);
+                    respondSafely(sendResponse, response);
+                });
+            } catch (error) {
+                console.error("[Extension] Error updating all limits:", error);
+                respondSafely(sendResponse, { error: "Internal error" });
+            }
+        });
+        return true; // Important for asynchronous responses
+    } else if (request.action === 'updateLimit') {
+        console.log("[Extension] UPDATING LIMIT REQUEST RECEIVED", {
+            site: request.site,
+            newLimit: request.newLimit,
+            sender: sender ? sender.id : 'unknown'
+        });
+
+        chrome.storage.sync.get(['limits'], (data) => {
+            try {
+                if (!data.limits) data.limits = {};
+                const oldLimit = data.limits[request.site];
+                data.limits[request.site] = request.newLimit;
+
+                console.log("[Extension] Limit updated for:", request.site,
+                    "Old value:", oldLimit,
+                    "New value:", request.newLimit,
+                    "All limits now:", JSON.stringify(data.limits));
+
+                chrome.storage.sync.set({ limits: data.limits }, () => {
+                    const response = {
+                        success: true,
+                        updatedSite: request.site,
+                        newLimit: request.newLimit,
+                        allLimits: data.limits
+                    };
+                    console.log("[Extension] Sending response for updateLimit:", response);
+                    respondSafely(sendResponse, response);
                 });
             } catch (error) {
                 console.error("[Extension] Error updating limit:", error);
