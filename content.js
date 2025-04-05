@@ -1,129 +1,129 @@
-let dominio = location.hostname.replace('www.', '');
+let domain = location.hostname.replace('www.', '');
 let lastUrl = location.href;
 let checking = false;
 let redirectInProgress = false;
 let extensionValid = true;
-let countedContent = new Set(); // Para evitar contar el mismo contenido varias veces
+let countedContent = new Set(); // To avoid counting the same content multiple times
 let videoObserverStarted = false;
 let lastContextCheck = 0;
 
-// Verificar si el contexto de la extensión sigue siendo válido
-function verificarContexto() {
-    // Limitar la frecuencia de verificación (máximo una vez cada 2 segundos)
-    const ahora = Date.now();
-    if (ahora - lastContextCheck < 2000) return extensionValid;
+// Check if the extension context is still valid
+function checkContext() {
+    // Limit check frequency (maximum once every 2 seconds)
+    const now = Date.now();
+    if (now - lastContextCheck < 2000) return extensionValid;
 
-    lastContextCheck = ahora;
+    lastContextCheck = now;
 
     try {
-        // Una forma más robusta de verificar si el contexto sigue siendo válido
-        // usando un método que lanzará una excepción si el contexto no es válido
+        // A more robust way to check if the context is still valid
+        // using a method that will throw an exception if the context is invalid
         chrome.runtime.getURL('');
         extensionValid = true;
         return true;
     } catch (e) {
-        console.log("[Extension] Error al verificar contexto:", e.message);
+        console.log("[Extension] Error checking context:", e.message);
         extensionValid = false;
 
-        // Intentar liberar recursos
+        // Try to free resources
         try {
             if (observer) {
                 observer.disconnect();
             }
 
-            // Eliminar otros event listeners
+            // Remove other event listeners
             const videos = document.querySelectorAll('video');
             videos.forEach(video => {
-                video.removeEventListener('play', manejarEventoReproduccion);
-                video.removeEventListener('playing', manejarEventoReproduccion);
+                video.removeEventListener('play', handlePlaybackEvent);
+                video.removeEventListener('playing', handlePlaybackEvent);
             });
 
             if (videoObserverStarted) {
                 videoObserverStarted = false;
             }
 
-            // Limpiar el observer de TikTok si existe
+            // Clean up TikTok observer if it exists
             if (window._extensionTikTokObserver) {
                 try {
                     window._extensionTikTokObserver.disconnect();
                 } catch (e) {
-                    console.log("[Extension] Error al desconectar observer de TikTok:", e.message);
+                    console.log("[Extension] Error disconnecting TikTok observer:", e.message);
                 }
             }
 
-            // Limpiar el observer de Instagram si existe
+            // Clean up Instagram observer if it exists
             if (window._extensionInstagramObserver) {
                 try {
                     window._extensionInstagramObserver.disconnect();
                 } catch (e) {
-                    console.log("[Extension] Error al desconectar observer de Instagram:", e.message);
+                    console.log("[Extension] Error disconnecting Instagram observer:", e.message);
                 }
             }
 
-            // Limpiar el observer de YouTube si existe
+            // Clean up YouTube observer if it exists
             if (window._extensionYouTubeObserver) {
                 try {
                     window._extensionYouTubeObserver.disconnect();
                 } catch (e) {
-                    console.log("[Extension] Error al desconectar observer de YouTube:", e.message);
+                    console.log("[Extension] Error disconnecting YouTube observer:", e.message);
                 }
             }
         } catch (cleanupError) {
-            console.log("[Extension] Error al liberar recursos:", cleanupError.message);
+            console.log("[Extension] Error freeing resources:", cleanupError.message);
         }
 
         return false;
     }
 }
 
-// Loguear información de debug
+// Log debug information
 function logDebugInfo() {
-    if (!verificarContexto()) return;
+    if (!checkContext()) return;
 
     try {
-        if (dominio.includes('instagram.com')) {
+        if (domain.includes('instagram.com')) {
             console.log("[Extension] Debug URL Instagram:", location.href);
             console.log("[Extension] Pathname:", location.pathname);
 
             try {
                 const videos = document.querySelectorAll('video');
-                console.log("[Extension] Videos encontrados:", videos.length);
+                console.log("[Extension] Videos found:", videos.length);
 
-                // Usar Array.from con seguridad adicional
+                // Use Array.from with extra safety
                 Array.from(videos).forEach((video, index) => {
                     try {
                         if (!document.contains(video)) return;
 
                         console.log(`[Extension] Video ${index + 1}:`, {
                             visible: isElementVisible(video),
-                            src: video.src || video.currentSrc || 'sin-src',
-                            parentClass: video.parentElement ? video.parentElement.className : 'sin-padre',
+                            src: video.src || video.currentSrc || 'no-src',
+                            parentClass: video.parentElement ? video.parentElement.className : 'no-parent',
                             width: video.offsetWidth,
                             height: video.offsetHeight
                         });
                     } catch (videoError) {
-                        console.log(`[Extension] Error al analizar video ${index + 1}:`, videoError.message);
+                        console.log(`[Extension] Error analyzing video ${index + 1}:`, videoError.message);
                     }
                 });
             } catch (videosError) {
-                console.log("[Extension] Error al obtener videos:", videosError.message);
+                console.log("[Extension] Error getting videos:", videosError.message);
             }
 
-            // Log elementos de UI de Instagram con seguridad adicional
+            // Log Instagram UI elements with extra safety
             try {
-                console.log("[Extension] Diálogos:", document.querySelectorAll('[role="dialog"]').length);
+                console.log("[Extension] Dialogs:", document.querySelectorAll('[role="dialog"]').length);
             } catch (dialogError) {
-                console.log("[Extension] Error al obtener diálogos:", dialogError.message);
+                console.log("[Extension] Error getting dialogs:", dialogError.message);
             }
 
             try {
-                console.log("[Extension] Botones de navegación:", document.querySelectorAll('[role="button"]').length);
+                console.log("[Extension] Navigation buttons:", document.querySelectorAll('[role="button"]').length);
             } catch (buttonError) {
-                console.log("[Extension] Error al obtener botones:", buttonError.message);
+                console.log("[Extension] Error getting buttons:", buttonError.message);
             }
         }
     } catch (error) {
-        console.error("[Extension] Error en logDebugInfo:", error.message);
+        console.error("[Extension] Error in logDebugInfo:", error.message);
 
         if (error.message && (
             error.message.includes("Extension context invalidated") ||
@@ -135,12 +135,12 @@ function logDebugInfo() {
     }
 }
 
-// Verifica si un elemento es visible en la pantalla
+// Check if an element is visible on screen
 function isElementVisible(element) {
     if (!element) return false;
 
     try {
-        // Verificar que el elemento siga en el DOM
+        // Check that the element is still in the DOM
         if (!document.contains(element)) return false;
 
         const rect = element.getBoundingClientRect();
@@ -149,54 +149,54 @@ function isElementVisible(element) {
             rect.left >= 0 &&
             rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
             rect.right <= (window.innerWidth || document.documentElement.clientWidth) &&
-            rect.width > 10 && // Ignorar elementos muy pequeños
+            rect.width > 10 && // Ignore very small elements
             rect.height > 10 &&
             window.getComputedStyle(element).display !== 'none' &&
             window.getComputedStyle(element).visibility !== 'hidden'
         );
     } catch (error) {
-        // Posible error si el elemento fue eliminado del DOM durante la verificación
-        console.error("[Extension] Error al verificar visibilidad:", error.message);
+        // Possible error if the element was removed from the DOM during the check
+        console.error("[Extension] Error checking visibility:", error.message);
         return false;
     }
 }
 
-// Simplificar la verificación para TikTok
-function esTikTokVideo() {
-    const esTikTok = dominio.includes('tiktok.com');
-    const esVideo = location.pathname.includes('/video/') ||
+// Simplify TikTok verification
+function isTikTokVideo() {
+    const isTikTok = domain.includes('tiktok.com');
+    const isVideo = location.pathname.includes('/video/') ||
         location.pathname.includes('@') && /\d+/.test(location.pathname);
 
-    // Agregar más logging para TikTok
-    if (esTikTok) {
-        console.log("[Extension] Verificando TikTok:", location.href);
-        console.log("[Extension] Pathname TikTok:", location.pathname);
-        console.log("[Extension] ¿Es video de TikTok?", esVideo);
+    // Add more logging for TikTok
+    if (isTikTok) {
+        console.log("[Extension] Checking TikTok:", location.href);
+        console.log("[Extension] TikTok pathname:", location.pathname);
+        console.log("[Extension] Is TikTok video?", isVideo);
     }
 
-    return esTikTok && esVideo;
+    return isTikTok && isVideo;
 }
 
-// Obtener un identificador único para el video o imagen actual
+// Get a unique identifier for the current video or image
 function getContentId() {
-    // Tratamiento especial para YouTube Shorts para evitar conteo múltiple
-    if (dominio.includes('youtube.com') && location.href.includes('/shorts/')) {
-        // Extraer solo el ID del short de la URL para evitar múltiples conteos
+    // Special handling for YouTube Shorts to avoid multiple counting
+    if (domain.includes('youtube.com') && location.href.includes('/shorts/')) {
+        // Extract only the short ID from the URL to avoid multiple counts
         const shortMatch = location.pathname.match(/\/shorts\/([^?/]+)/);
         if (shortMatch && shortMatch[1]) {
             return `youtube-short-${shortMatch[1]}`;
         }
     }
 
-    // Tratamiento especial para Instagram para evitar conteo múltiple
-    if (dominio.includes('instagram.com')) {
-        // 1. Patrón para Reels individuales
+    // Special handling for Instagram to avoid multiple counting
+    if (domain.includes('instagram.com')) {
+        // 1. Pattern for individual Reels
         const reelMatch = location.pathname.match(/\/reel\/([^/?]+)/);
         if (reelMatch && reelMatch[1]) {
             return `instagram-reel-${reelMatch[1]}`;
         }
 
-        // 2. Patrón para Stories de usuarios
+        // 2. Pattern for user Stories
         const storiesMatch = location.pathname.match(/\/stories\/([^/?]+)/);
         if (storiesMatch && storiesMatch[1]) {
             // Agrupar stories por usuario y ventanas de tiempo de 30 segundos
@@ -210,14 +210,14 @@ function getContentId() {
             return `instagram-post-${postMatch[1]}`;
         }
 
-        // 4. Sección de reels en feed o perfil
+        // 4. Sección de reels en feed or profile
         if (location.pathname.includes('/reels')) {
             // Para contenido en la sección de reels, agrupar por intervalos de tiempo
             // para evitar contar cada scroll como contenido nuevo
             return `instagram-reels-section-${Math.floor(Date.now() / 60000)}`;
         }
 
-        // 5. Contenido en feed o página de exploración con videos
+        // 5. Contenido en feed or página de exploración con videos
         const videos = document.querySelectorAll('video');
         if (videos.length > 0) {
             const hayVideoVisible = Array.from(videos).some(video =>
@@ -225,14 +225,14 @@ function getContentId() {
             );
 
             if (hayVideoVisible) {
-                // Para videos en feed, usar ventanas de tiempo más largas (2 minutos)
+                // Para videos en feed, usar ventanas de tiempo más largas (2 minutes)
                 return `instagram-feed-video-${location.pathname}-${Math.floor(Date.now() / 120000)}`;
             }
         }
     }
 
     // Tratamiento especial para TikTok para evitar conteo múltiple
-    if (dominio.includes('tiktok.com')) {
+    if (domain.includes('tiktok.com')) {
         // Primer patrón: URLs de video estándar
         const tiktokVideoMatch = location.pathname.match(/\/video\/(\d+)/);
         if (tiktokVideoMatch && tiktokVideoMatch[1]) {
@@ -257,142 +257,59 @@ function getContentId() {
     return `content-${location.pathname}-${Math.floor(Date.now() / 60000)}`;
 }
 
-// Simplificar la verificación para YouTube
-function esYoutubeShort() {
-    // Verificación directa basada en URL
-    const esShortURL = dominio.includes('youtube.com') && location.pathname.includes('/shorts/');
+// Check if YouTube content is a Short
+function isYoutubeShort() {
+    // Direct URL-based verification
+    const isShortURL = domain.includes('youtube.com') && location.pathname.includes('/shorts/');
 
-    // Si estamos en YouTube, loguear información de debug
-    if (dominio.includes('youtube.com')) {
-        console.log("[Extension] Verificando YouTube:", location.href);
-        console.log("[Extension] Pathname YouTube:", location.pathname);
-        console.log("[Extension] ¿Es YouTube Short URL?", esShortURL);
-
-        // Si la URL es de shorts, considerarlo un short independientemente de la interfaz
-        if (esShortURL) {
-            return true;
-        }
-
-        // Verificar también la presencia de elementos específicos de Shorts
-        const esInterfazShorts =
-            document.querySelector('ytd-shorts') ||
-            document.querySelector('ytd-reel-video-renderer') ||
-            document.querySelector('[page-subtype="shorts"]') ||
-            document.querySelector('ytd-shorts-video-renderer');
-
-        console.log("[Extension] ¿Encontrados elementos de Shorts UI?", !!esInterfazShorts);
-
-        if (esInterfazShorts) {
-            return true;
-        }
-
-        // Si hay videos, verificar si parecen ser Shorts por su tamaño
-        const videos = document.querySelectorAll('video');
-        if (videos.length > 0) {
-            const hayVideoVertical = Array.from(videos).some(video => {
-                if (!isElementVisible(video)) return false;
-                // Los Shorts suelen ser videos verticales (más altos que anchos)
-                return video.offsetHeight > video.offsetWidth && video.offsetHeight > 0;
-            });
-            console.log("[Extension] Videos encontrados:", videos.length);
-            console.log("[Extension] ¿Hay video vertical (posible Short)?", hayVideoVertical);
-
-            // Si tenemos un video vertical visible, es probable que sea un Short
-            if (hayVideoVertical) {
-                console.log("[Extension] Detectado Short por video vertical");
-                return true;
-            }
-        }
+    // If we're on YouTube, log debug information
+    if (domain.includes('youtube.com')) {
+        console.log("[Extension] Checking YouTube:", location.href);
+        console.log("[Extension] YouTube pathname:", location.pathname);
+        console.log("[Extension] Is YouTube Short?", isShortURL);
     }
 
-    return esShortURL;
+    return isShortURL;
 }
 
-// Detecta cualquier contenido multimedia en Instagram
-function detectarMultimediaInstagram() {
-    if (!dominio.includes('instagram.com')) return false;
+// Detect any multimedia content on Instagram
+function detectInstagramMultimedia() {
+    if (!domain.includes('instagram.com')) return false;
 
     try {
-        // 1. Verificar por URLs específicas primero (forma más segura)
-        const esURLMultimedia =
-            location.pathname.includes('/reel/') ||
-            location.pathname.includes('/reels') ||
-            location.pathname.includes('/stories/') ||
-            location.pathname.includes('/explore');
-
-        if (esURLMultimedia) {
-            console.log("[Extension] Detectado por URL:", location.pathname);
+        // Check for Reels
+        if (location.pathname.includes('/reel/')) {
             return true;
         }
 
-        // 2. Verificar videos visibles
+        // Check for Stories
+        if (location.pathname.includes('/stories/')) {
+            return true;
+        }
+
+        // Check if we're in the feed and there are videos playing
         const videos = Array.from(document.querySelectorAll('video'));
-        const hayVideoVisible = videos.some(video => isElementVisible(video));
-
-        if (hayVideoVisible) {
-            console.log("[Extension] Detectado video visible");
-            return true;
-        }
-
-        // 3. Verificar diálogos con imágenes (típico de stories)
-        const dialogos = document.querySelectorAll('[role="dialog"]');
-        if (dialogos.length > 0) {
-            for (const dialogo of dialogos) {
-                // Verificar que el dialogo siga existiendo en el DOM (puede ser removido dinámicamente)
-                if (!document.contains(dialogo)) continue;
-
-                const tieneImagenVisible = Array.from(dialogo.querySelectorAll('img')).some(img =>
-                    document.contains(img) && isElementVisible(img) && img.offsetWidth > 100 && img.offsetHeight > 100
-                );
-
-                if (tieneImagenVisible) {
-                    console.log("[Extension] Detectado diálogo con imagen");
-                    return true;
-                }
-            }
-        }
-
-        // 4. Verificar elementos de UI específicos de reels/stories
-        const elementosUI = [
-            document.querySelector('[aria-label*="Me gusta"]'),
-            document.querySelector('[aria-label*="Like"]'),
-            document.querySelector('[aria-label*="siguiente"],[aria-label*="Next"]'),
-            document.querySelector('[aria-label*="Pausar"],[aria-label*="Pause"]'),
-            document.querySelector('[aria-label*="Play"]'),
-            document.querySelector('[aria-label*="Reel"]')
-        ];
-
-        if (elementosUI.some(elem => elem !== null && document.contains(elem) && isElementVisible(elem))) {
-            console.log("[Extension] Detectados controles de reproducción");
-            return true;
-        }
+        return videos.some(video => {
+            return isElementVisible(video) && !video.paused;
+        });
     } catch (error) {
-        console.error("[Extension] Error en detectarMultimediaInstagram:", error.message);
-        if (error.message && (
-            error.message.includes("Extension context invalidated") ||
-            error.message.includes("Invalid extension") ||
-            error.message.includes("Extension context")
-        )) {
-            extensionValid = false;
-        }
+        console.error("[Extension] Error detecting Instagram multimedia:", error);
         return false;
     }
-
-    return false;
 }
 
 // Crear una referencia global a la función para poder eliminarla después
-let manejarEventoReproduccion = function (event) {
-    if (!verificarContexto()) return;
+let handlePlaybackEvent = function (event) {
+    if (!checkContext()) return;
 
     console.log("[Extension] Video iniciado/reproduciendo", event.target);
     // Al detectar que un video comienza a reproducirse, verificar contenido
-    setTimeout(verificarContenido, 50);
+    setTimeout(checkContent, 50);
 };
 
 // Monitorear todos los videos de la página 
 function iniciarObservadorDeVideos() {
-    if (videoObserverStarted || !dominio.includes('instagram.com') || !verificarContexto()) return;
+    if (videoObserverStarted || !domain.includes('instagram.com') || !checkContext()) return;
     videoObserverStarted = true;
 
     console.log("[Extension] Iniciando observador de reproducción de videos");
@@ -401,13 +318,13 @@ function iniciarObservadorDeVideos() {
         // Observar videos existentes
         const videos = document.querySelectorAll('video');
         videos.forEach(video => {
-            video.addEventListener('play', manejarEventoReproduccion);
-            video.addEventListener('playing', manejarEventoReproduccion);
+            video.addEventListener('play', handlePlaybackEvent);
+            video.addEventListener('playing', handlePlaybackEvent);
         });
 
         // Observar nuevos videos
         const videoObserver = new MutationObserver(mutations => {
-            if (!verificarContexto()) {
+            if (!checkContext()) {
                 videoObserver.disconnect();
                 return;
             }
@@ -415,13 +332,13 @@ function iniciarObservadorDeVideos() {
             mutations.forEach(mutation => {
                 mutation.addedNodes.forEach(node => {
                     if (node.nodeName === 'VIDEO') {
-                        node.addEventListener('play', manejarEventoReproduccion);
-                        node.addEventListener('playing', manejarEventoReproduccion);
+                        node.addEventListener('play', handlePlaybackEvent);
+                        node.addEventListener('playing', handlePlaybackEvent);
                     } else if (node.nodeType === 1) {
                         const nuevosVideos = node.querySelectorAll('video');
                         nuevosVideos.forEach(video => {
-                            video.addEventListener('play', manejarEventoReproduccion);
-                            video.addEventListener('playing', manejarEventoReproduccion);
+                            video.addEventListener('play', handlePlaybackEvent);
+                            video.addEventListener('playing', handlePlaybackEvent);
                         });
                     }
                 });
@@ -438,49 +355,55 @@ function iniciarObservadorDeVideos() {
     }
 }
 
-// Enviar mensaje al background script con manejo de errores mejorado
-function enviarMensajeSeguro(mensaje, callback) {
-    if (!verificarContexto()) {
-        console.log("[Extension] No se puede enviar mensaje: contexto inválido");
+// Send message to background script with improved error handling
+function sendMessageSafely(message, callback) {
+    if (!checkContext()) {
+        console.log("[Extension] Cannot send message: invalid context");
         if (typeof callback === 'function') callback(null);
-        return false;
+        return;
     }
 
     try {
-        chrome.runtime.sendMessage(mensaje, function (response) {
-            // Capturamos el error inmediatamente después de la llamada
-            const runtimeError = chrome.runtime.lastError;
-
-            if (runtimeError) {
-                console.error("[Extension] Error al enviar mensaje:", runtimeError.message);
-                extensionValid = false;
-
-                if (typeof callback === 'function') callback(null);
+        chrome.runtime.sendMessage(message, response => {
+            if (chrome.runtime.lastError) {
+                console.error("[Extension] Message error:", chrome.runtime.lastError);
+                if (typeof callback === 'function') {
+                    callback(null);
+                }
                 return;
             }
 
-            if (typeof callback === 'function') callback(response);
+            if (typeof callback === 'function') {
+                callback(response);
+            }
         });
-        return true;
     } catch (error) {
-        console.error("[Extension] Error al enviar mensaje:", error.message);
-        extensionValid = false;
+        console.error("[Extension] Error sending message:", error);
+        if (typeof callback === 'function') {
+            callback(null);
+        }
 
-        if (typeof callback === 'function') callback(null);
-        return false;
+        if (error.message && (
+            error.message.includes("Extension context invalidated") ||
+            error.message.includes("Invalid extension") ||
+            error.message.includes("Extension context")
+        )) {
+            extensionValid = false;
+        }
     }
 }
 
-function verificarContenido() {
-    // No ejecutar si el contexto de la extensión no es válido o hay verificaciones en curso
-    if (!verificarContexto() || checking || redirectInProgress) return;
+// Check for limited content
+function checkContent() {
+    // Don't run if the extension context is invalid or there are ongoing checks
+    if (!checkContext() || checking || redirectInProgress) return;
     checking = true;
 
     try {
         logDebugInfo();
 
         // Debug especial para TikTok
-        if (dominio.includes('tiktok.com')) {
+        if (domain.includes('tiktok.com')) {
             console.log("[Extension] Verificando TikTok - URL:", location.href);
             const videos = document.querySelectorAll('video');
             console.log("[Extension] Videos en TikTok:", videos.length);
@@ -495,7 +418,7 @@ function verificarContenido() {
         }
 
         // Debug especial para Instagram
-        if (dominio.includes('instagram.com')) {
+        if (domain.includes('instagram.com')) {
             console.log("[Extension] Verificando Instagram - URL:", location.href);
             const videos = document.querySelectorAll('video');
             console.log("[Extension] Videos en Instagram:", videos.length);
@@ -510,7 +433,7 @@ function verificarContenido() {
         }
 
         // Debug especial para YouTube
-        if (dominio.includes('youtube.com')) {
+        if (domain.includes('youtube.com')) {
             console.log("[Extension] Verificando YouTube - URL:", location.href);
             const videos = document.querySelectorAll('video');
             console.log("[Extension] Videos en YouTube:", videos.length);
@@ -540,10 +463,10 @@ function verificarContenido() {
         let esContenidoLimitado = false;
         try {
             // Simplificación para reducir falsos positivos
-            if (esYoutubeShort()) {
+            if (isYoutubeShort()) {
                 console.log("[Extension] Detectado YouTube Short:", contentId);
                 esContenidoLimitado = true;
-            } else if (esTikTokVideo()) {
+            } else if (isTikTokVideo()) {
                 console.log("[Extension] Detectado TikTok video:", contentId);
                 // Verificar si hay videos visibles para mejorar la detección en TikTok
                 const hayVideoVisible = Array.from(document.querySelectorAll('video')).some(video =>
@@ -557,7 +480,7 @@ function verificarContenido() {
                     // Aún así contar videos de TikTok basados en la URL
                     esContenidoLimitado = true;
                 }
-            } else if (dominio.includes('instagram.com') && detectarMultimediaInstagram()) {
+            } else if (domain.includes('instagram.com') && detectInstagramMultimedia()) {
                 console.log("[Extension] Detectado contenido multimedia de Instagram:", contentId);
                 esContenidoLimitado = true;
             }
@@ -574,8 +497,8 @@ function verificarContenido() {
         console.log("[Extension] ¿Es contenido limitado?", esContenidoLimitado);
 
         if (esContenidoLimitado) {
-            console.log("[Extension] Enviando mensaje para incrementar contador de: " + dominio);
-            enviarMensajeSeguro({ action: 'incrementarContador', sitio: dominio }, (response) => {
+            console.log("[Extension] Enviando mensaje para incrementar contador de: " + domain);
+            sendMessageSafely({ action: 'incrementCounter', site: domain }, (response) => {
                 checking = false;
 
                 if (!response) {
@@ -594,19 +517,19 @@ function verificarContenido() {
                 }
 
                 // El background script maneja la redirección si es necesario
-                if (response && response.alcanzado) {
+                if (response && response.reached) {
                     redirectInProgress = true;
-                } else if (response && response.contadorHoy === response.limite - 1) {
-                    alert(`⚠️ Te queda solo 1 contenido más hoy en ${dominio}`);
+                } else if (response && response.todayCounter === response.limit - 1) {
+                    alert(`⚠️ Te queda solo 1 contenido más hoy en ${domain}`);
                 }
             });
         } else {
             checking = false;
             // Verificar si ya se ha superado el límite
-            verificarLimite();
+            checkLimit();
         }
     } catch (error) {
-        console.error("[Extension] Error inesperado en verificarContenido:", error);
+        console.error("[Extension] Error inesperado en checkContent:", error);
         checking = false;
 
         if (error.message && (
@@ -659,20 +582,21 @@ function verificarContenido() {
     }
 }
 
-function verificarLimite() {
-    if (!verificarContexto() || redirectInProgress) return;
+// Check if the limit has been reached
+function checkLimit() {
+    if (!checkContext() || redirectInProgress) return;
 
-    enviarMensajeSeguro({ action: 'obtenerEstado' }, (response) => {
-        if (!response) return; // Error o contexto inválido
+    sendMessageSafely({ action: 'getStatus' }, (response) => {
+        if (!response) return;
 
-        const contadores = response.contador || {};
-        const limites = response.limites || {};
+        const counters = response.counter || {};
+        const limits = response.limits || {};
 
-        if (contadores[dominio] >= (limites[dominio] || 10) && !redirectInProgress) {
+        if (counters[domain] >= (limits[domain] || 10) && !redirectInProgress) {
             redirectInProgress = true;
-            enviarMensajeSeguro({
-                action: 'abrirPaginaLimite',
-                sitio: dominio
+            sendMessageSafely({
+                action: 'openLimitPage',
+                site: domain
             });
         }
     });
@@ -680,7 +604,7 @@ function verificarLimite() {
 
 // Observador principal de la página
 const observer = new MutationObserver(mutations => {
-    if (!verificarContexto()) {
+    if (!checkContext()) {
         observer.disconnect();
         return;
     }
@@ -694,22 +618,22 @@ const observer = new MutationObserver(mutations => {
 
         // Usar un timeout más largo para sitios que tienen problemas con múltiples conteos
         let delay = 300;
-        if (dominio.includes('youtube.com')) delay = 1000;
-        if (dominio.includes('tiktok.com')) delay = 1000;
+        if (domain.includes('youtube.com')) delay = 1000;
+        if (domain.includes('tiktok.com')) delay = 1000;
 
-        setTimeout(verificarContenido, delay);
+        setTimeout(checkContent, delay);
         return;
     }
 
     // Para YouTube y TikTok, ser más conservador con las verificaciones para evitar múltiples conteos
-    if (dominio.includes('youtube.com') || dominio.includes('tiktok.com')) {
+    if (domain.includes('youtube.com') || domain.includes('tiktok.com')) {
         // Solo verificar si hay cambios muy específicos en la URL que indican cambio de contenido
         const esContenidoLimitado =
-            (dominio.includes('youtube.com') && urlActual.includes('/shorts/')) ||
-            (dominio.includes('tiktok.com') && urlActual.includes('/video/'));
+            (domain.includes('youtube.com') && urlActual.includes('/shorts/')) ||
+            (domain.includes('tiktok.com') && urlActual.includes('/video/'));
 
         if (esContenidoLimitado && !checking && !redirectInProgress) {
-            setTimeout(verificarContenido, 1000);
+            setTimeout(checkContent, 1000);
         }
         return;
     }
@@ -758,55 +682,30 @@ const observer = new MutationObserver(mutations => {
     }
 
     if (debeVerificar && !checking && !redirectInProgress) {
-        setTimeout(verificarContenido, 300);
+        setTimeout(checkContent, 300);
     }
 });
 
-// Comprobar periódicamente, con lógica específica por sitio
-function verificarPeriodicamente() {
-    if (!verificarContexto() || redirectInProgress) return;
-
-    // Para YouTube, reducir la frecuencia de verificación para evitar múltiples conteos
-    if (dominio.includes('youtube.com')) {
-        // Sólo verificar si estamos en un short
-        if (esYoutubeShort() && !checking) {
-            verificarContenido();
+// Check periodically
+function checkPeriodically() {
+    setInterval(() => {
+        if (lastUrl !== location.href) {
+            lastUrl = location.href;
+            // Reset when URL changes
+            redirectInProgress = false;
+            countedContent = new Set();
+            console.log("[Extension] URL changed, resetting state");
         }
-        // Usar un intervalo más largo para YouTube
-        setTimeout(verificarPeriodicamente, 5000);
-        return;
-    }
 
-    // Para Instagram, reducir frecuencia para evitar múltiples conteos
-    if (dominio.includes('instagram.com')) {
-        // Solo verificar si no se está verificando ya
-        if (!checking) {
-            verificarContenido();
-        }
-        // Usar un intervalo más largo para Instagram
-        setTimeout(verificarPeriodicamente, 6000);
-        return;
-    }
-
-    // Para TikTok, reducir frecuencia para evitar múltiples conteos
-    if (dominio.includes('tiktok.com')) {
-        // Solo verificar si estamos en un video y no se está verificando ya
-        if (esTikTokVideo() && !checking) {
-            verificarContenido();
-        }
-        // Usar un intervalo más largo para TikTok
-        setTimeout(verificarPeriodicamente, 5000);
-        return;
-    }
-
-    // Para cualquier otro sitio
-    setTimeout(verificarPeriodicamente, 2000);
+        checkContent();
+        checkLimit();
+    }, 500);
 }
 
 // Inicialización
 try {
     // Verificar si el contexto es válido antes de iniciar
-    if (!verificarContexto()) {
+    if (!checkContext()) {
         console.log("[Extension] Contexto no válido al iniciar, no se inicializan observadores");
         throw new Error("Contexto de extensión no válido");
     }
@@ -856,13 +755,13 @@ try {
     // Verificación inicial con un pequeño retraso para permitir que la página cargue
     // Más tiempo para sitios que tienen problemas con múltiples conteos
     const initialDelay =
-        dominio.includes('youtube.com') ? 1500 :
-            dominio.includes('tiktok.com') ? 1500 :
-                dominio.includes('instagram.com') ? 1500 : 800;
-    setTimeout(verificarContenido, initialDelay);
+        domain.includes('youtube.com') ? 1500 :
+            domain.includes('tiktok.com') ? 1500 :
+                domain.includes('instagram.com') ? 1500 : 800;
+    setTimeout(checkContent, initialDelay);
 
     // Configuraciones específicas por sitio
-    if (dominio.includes('instagram.com')) {
+    if (domain.includes('instagram.com')) {
         console.log("[Extension] Inicializando manejadores específicos para Instagram");
 
         // Iniciar observador específico de videos
@@ -870,7 +769,7 @@ try {
 
         // Verificar cuando el usuario interactúa con elementos de navegación en Instagram
         document.addEventListener('click', (event) => {
-            if (!verificarContexto() || checking || redirectInProgress) return;
+            if (!checkContext() || checking || redirectInProgress) return;
 
             // Buscar elementos de navegación específicos de Instagram
             const esNavegacion =
@@ -892,10 +791,10 @@ try {
                     setTimeout(() => {
                         if (location.href !== urlAnterior) {
                             console.log("[Extension] URL cambió después de clic en Instagram");
-                            verificarContenido();
+                            checkContent();
                         } else {
                             console.log("[Extension] Verificando después de clic en Instagram (sin cambio de URL)");
-                            verificarContenido();
+                            checkContent();
                         }
                     }, 1000);
                 }, 500);
@@ -904,7 +803,7 @@ try {
 
         // Para Instagram, añadir observador específico de Reels
         const instagramReelObserver = new MutationObserver(mutations => {
-            if (!verificarContexto() || checking || redirectInProgress) {
+            if (!checkContext() || checking || redirectInProgress) {
                 instagramReelObserver.disconnect();
                 return;
             }
@@ -927,7 +826,7 @@ try {
 
             if (tieneVideosNuevos) {
                 // Dar tiempo para que el video se cargue completamente
-                setTimeout(verificarContenido, 1000);
+                setTimeout(checkContent, 1000);
             }
         });
 
@@ -953,20 +852,20 @@ try {
     }
 
     // Para YouTube, agregar manejadores específicos para botones de navegación
-    if (dominio.includes('youtube.com')) {
+    if (domain.includes('youtube.com')) {
         console.log("[Extension] Inicializando manejadores específicos para YouTube");
 
         // Verificación inicial de YouTube Shorts - verificar inmediatamente
         setTimeout(() => {
-            if (esYoutubeShort()) {
+            if (isYoutubeShort()) {
                 console.log("[Extension] Verificación inicial de YouTube Short");
-                verificarContenido();
+                checkContent();
             }
         }, 1000);
 
         // Verificar cuando se hace clic en botones de navegación de shorts
         document.addEventListener('click', (event) => {
-            if (!verificarContexto() || redirectInProgress) return;
+            if (!checkContext() || redirectInProgress) return;
 
             // Log para cualquier clic en YouTube
             console.log("[Extension] Clic en YouTube en elemento:", event.target.tagName);
@@ -986,7 +885,7 @@ try {
                 setTimeout(() => {
                     // Verificar después de dar tiempo al cambio de URL
                     console.log("[Extension] Verificando después de clic en navegación");
-                    verificarContenido();
+                    checkContent();
                 }, 800);
             }
         }, true);
@@ -994,7 +893,7 @@ try {
         // También monitorear las actualizaciones de la URL (YouTube usa mucho history.pushState)
         let lastYoutubeURL = location.href;
         setInterval(() => {
-            if (!verificarContexto()) return;
+            if (!checkContext()) return;
 
             if (lastYoutubeURL !== location.href) {
                 console.log("[Extension] Cambio de URL en YouTube detectado:");
@@ -1004,7 +903,7 @@ try {
                 lastYoutubeURL = location.href;
 
                 // Verificar después de un breve retraso para cualquier cambio de URL
-                setTimeout(verificarContenido, 800);
+                setTimeout(checkContent, 800);
             }
         }, 500);
 
@@ -1012,18 +911,18 @@ try {
         document.addEventListener('play', (event) => {
             if (event.target.tagName === 'VIDEO' && !redirectInProgress) {
                 console.log("[Extension] Video de YouTube iniciado");
-                setTimeout(verificarContenido, 500);
+                setTimeout(checkContent, 500);
             }
         }, true);
 
         // Observador simplificado para YouTube - enfocado en videos
         const youtubeObserver = new MutationObserver(() => {
-            if (!verificarContexto() || redirectInProgress) return;
+            if (!checkContext() || redirectInProgress) return;
 
             // Verificar en shorts
-            if (esYoutubeShort()) {
+            if (isYoutubeShort()) {
                 console.log("[Extension] Cambios detectados en YouTube, verificando contenido");
-                setTimeout(verificarContenido, 800);
+                setTimeout(checkContent, 800);
             }
         });
 
@@ -1038,20 +937,20 @@ try {
 
         // Verificar regularmente en shorts - solución alternativa por si fallan los otros métodos
         setInterval(() => {
-            if (!verificarContexto() || redirectInProgress) return;
+            if (!checkContext() || redirectInProgress) return;
 
-            if (esYoutubeShort() && !checking) {
+            if (isYoutubeShort() && !checking) {
                 console.log("[Extension] Verificación periódica de shorts");
-                verificarContenido();
+                checkContent();
             }
         }, 3000);
     }
 
     // Para TikTok, agregar manejadores específicos para controles de navegación
-    if (dominio.includes('tiktok.com')) {
+    if (domain.includes('tiktok.com')) {
         // Verificar cuando se hace clic en botones de navegación entre videos
         document.addEventListener('click', (event) => {
-            if (!verificarContexto() || checking || redirectInProgress) return;
+            if (!checkContext() || checking || redirectInProgress) return;
 
             // Log para cualquier clic en TikTok
             console.log("[Extension] Clic en TikTok en elemento:", event.target.tagName);
@@ -1070,15 +969,15 @@ try {
                 // Dar tiempo para que cambie la URL
                 setTimeout(() => {
                     console.log("[Extension] Verificando después de navegación en TikTok:", location.href);
-                    verificarContenido();
+                    checkContent();
                 }, 1000);
             } else {
                 // Verificar de todos modos después de cualquier clic en TikTok
                 // ya que la interfaz varía considerablemente
                 setTimeout(() => {
-                    if (esTikTokVideo()) {
+                    if (isTikTokVideo()) {
                         console.log("[Extension] Verificando después de clic general en TikTok");
-                        verificarContenido();
+                        checkContent();
                     }
                 }, 1000);
             }
@@ -1089,15 +988,15 @@ try {
         window.addEventListener('scroll', () => {
             // Limitar la frecuencia de verificación (máximo una vez cada 1 segundo en scroll)
             const ahora = Date.now();
-            if (ahora - ultimoScroll < 1000 || !verificarContexto() || checking || redirectInProgress) return;
+            if (ahora - ultimoScroll < 1000 || !checkContext() || checking || redirectInProgress) return;
 
             ultimoScroll = ahora;
             console.log("[Extension] Detectado scroll en TikTok");
 
             setTimeout(() => {
-                if (esTikTokVideo()) {
+                if (isTikTokVideo()) {
                     console.log("[Extension] Verificando después de scroll en TikTok");
-                    verificarContenido();
+                    checkContent();
                 }
             }, 500);
         }, { passive: true });
@@ -1106,21 +1005,21 @@ try {
         document.addEventListener('play', (event) => {
             if (event.target.tagName === 'VIDEO' && !checking && !redirectInProgress) {
                 console.log("[Extension] Video de TikTok iniciado");
-                setTimeout(verificarContenido, 500);
+                setTimeout(checkContent, 500);
             }
         }, true);
 
         // Observar cambios en video específicos para TikTok
         const tiktokVideoObserver = new MutationObserver(mutations => {
-            if (!verificarContexto() || checking || redirectInProgress) {
+            if (!checkContext() || checking || redirectInProgress) {
                 tiktokVideoObserver.disconnect();
                 return;
             }
 
             const hayVideos = document.querySelectorAll('video').length > 0;
-            if (hayVideos && esTikTokVideo()) {
+            if (hayVideos && isTikTokVideo()) {
                 console.log("[Extension] Cambios detectados en videos de TikTok");
-                setTimeout(verificarContenido, 800);
+                setTimeout(checkContent, 800);
             }
         });
 
@@ -1137,25 +1036,25 @@ try {
 
         // Verificación inicial específica para TikTok
         setTimeout(() => {
-            if (esTikTokVideo()) {
+            if (isTikTokVideo()) {
                 console.log("[Extension] Verificación inicial de TikTok");
-                verificarContenido();
+                checkContent();
             }
         }, 1000);
     }
 
     // Iniciar verificación periódica para todos los sitios soportados
-    setTimeout(verificarPeriodicamente, 1500);
+    setTimeout(checkPeriodically, 1500);
 
     // Verificar cada vez que la ventana cambia de tamaño
     window.addEventListener('resize', () => {
-        if (verificarContexto() && !checking && !redirectInProgress) {
+        if (checkContext() && !checking && !redirectInProgress) {
             // Más retraso para sitios con problemas de múltiples conteos
             const resizeDelay =
-                dominio.includes('youtube.com') ? 1000 :
-                    dominio.includes('tiktok.com') ? 1000 :
-                        dominio.includes('instagram.com') ? 1000 : 500;
-            setTimeout(verificarContenido, resizeDelay);
+                domain.includes('youtube.com') ? 1000 :
+                    domain.includes('tiktok.com') ? 1000 :
+                        domain.includes('instagram.com') ? 1000 : 500;
+            setTimeout(checkContent, resizeDelay);
         }
     });
 } catch (error) {

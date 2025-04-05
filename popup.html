@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Configurar Límites Diarios</title>
+    <title>Configure Daily Limits</title>
     <link rel="stylesheet" href="style.css" />
     <style>
       .header {
@@ -22,7 +22,7 @@
         width: 100%;
       }
 
-      /* Estilos para la nueva vista de 3 columnas */
+      /* Styles for the new 3-column view */
       .sites-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -85,7 +85,7 @@
         border: 1px solid #ddd;
       }
 
-      /* Aumentar ancho del popup para acomodar las columnas */
+      /* Increase popup width to accommodate columns */
       body {
         width: 330px;
         background-color: #fafafa;
@@ -99,7 +99,7 @@
         color: #555;
       }
 
-      button#guardar {
+      button#save {
         margin-top: 12px;
       }
     </style>
@@ -107,11 +107,11 @@
   <body>
     <div class="container">
       <div class="header">
-        <h3>Límites de Contenido</h3>
-        <button class="close-btn" id="cerrar">✕</button>
+        <h3>Content Limits</h3>
+        <button class="close-btn" id="close">✕</button>
       </div>
 
-      <!-- Grid de 3 columnas con tarjetas visuales -->
+      <!-- 3-column grid with visual cards -->
       <div class="sites-grid">
         <div class="site-card" data-site="youtube.com">
           <div class="site-icon">▶️</div>
@@ -131,23 +131,17 @@
       </div>
 
       <div id="site-details">
-        <label for="sitio-actual" id="sitio-actual">YouTube</label>
+        <label for="current-site" id="current-site">YouTube</label>
         <label>
-          Contenido visto hoy: <span id="contador">0</span>/<span
-            id="limiteDiario"
+          Content viewed today: <span id="counter">0</span>/<span
+            id="dailyLimit"
             >10</span
           >
         </label>
-        <label for="limite">Configurar límite:</label>
-        <input
-          type="number"
-          id="limite"
-          min="1"
-          value="10"
-          class="full-width"
-        />
-        <button id="guardar" class="full-width">Guardar límite</button>
-        <p id="estado"></p>
+        <label for="limit">Configure limit:</label>
+        <input type="number" id="limit" min="1" value="10" class="full-width" />
+        <button id="save" class="full-width">Save limit</button>
+        <p id="status"></p>
       </div>
     </div>
     <script src="popup.js"></script>

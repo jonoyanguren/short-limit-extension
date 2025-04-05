@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Límite Diario de Contenido",
+    "name": "Daily Content Limit",
     "version": "1.0",
-    "description": "Limita la cantidad diaria de contenidos cortos que puedes ver en YouTube, Instagram y TikTok.",
+    "description": "Limits the daily amount of short content you can view on YouTube, Instagram and TikTok.",
     "permissions": [
         "storage",
         "tabs"

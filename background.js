@@ -1,256 +1,258 @@
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
-        limites: {
+        limits: {
             "youtube.com": 10,
             "instagram.com": 15,
             "tiktok.com": 20
         },
-        contador: {},
-        ultimoDia: new Date().toLocaleDateString()
+        counter: {},
+        lastDay: new Date().toLocaleDateString()
     }, () => {
-        console.log("[Extension] Instalación completada. Datos iniciales configurados.");
+        console.log("[Extension] Installation completed. Initial data configured.");
     });
 });
 
-// Log del estado actual para debuggear
-function logEstadoActual() {
-    chrome.storage.sync.get(['limites', 'contador', 'ultimoDia'], (data) => {
-        console.log("[Extension] Estado actual:", {
-            limites: data.limites || {},
-            contador: data.contador || {},
-            ultimoDia: data.ultimoDia || new Date().toLocaleDateString()
+// Log current state for debugging
+function logCurrentState() {
+    chrome.storage.sync.get(['limits', 'counter', 'lastDay'], (data) => {
+        console.log("[Extension] Current state:", {
+            limits: data.limits || {},
+            counter: data.counter || {},
+            lastDay: data.lastDay || new Date().toLocaleDateString()
         });
     });
 }
 
-// Ejecutar log al inicio
-logEstadoActual();
+// Execute log at start
+logCurrentState();
 
-// Función para abrir una página de la extensión
-function abrirPaginaExtension(pagina, parametros = {}, tabId = null) {
+// Function to open an extension page
+function openExtensionPage(page, parameters = {}, tabId = null) {
     try {
-        const url = chrome.runtime.getURL(pagina);
+        const url = chrome.runtime.getURL(page);
         const searchParams = new URLSearchParams();
 
-        // Añadir parámetros al URL si existen
-        for (const [key, value] of Object.entries(parametros)) {
+        // Add parameters to URL if they exist
+        for (const [key, value] of Object.entries(parameters)) {
             searchParams.append(key, value);
         }
 
-        const urlCompleta = `${url}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+        const completeUrl = `${url}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
 
-        // Si hay un tabId, actualizar esa pestaña, de lo contrario crear una nueva
+        // If there's a tabId, update that tab, otherwise create a new one
         if (tabId) {
-            chrome.tabs.update(tabId, { url: urlCompleta });
+            chrome.tabs.update(tabId, { url: completeUrl });
         } else {
-            chrome.tabs.create({ url: urlCompleta });
+            chrome.tabs.create({ url: completeUrl });
         }
     } catch (error) {
-        console.error("[Extension] Error al abrir página:", error);
+        console.error("[Extension] Error opening page:", error);
     }
 }
 
-// Función para verificar si una URL es de una plataforma social y cerrarla si es necesario
-function verificarYCerrarPestana(url, tabId) {
+// Function to check if a URL is from a social platform and close it if necessary
+function checkAndCloseTab(url, tabId) {
     try {
-        const esPaginaSocial =
+        const isSocialPage =
             url.includes('youtube.com') ||
             url.includes('instagram.com') ||
             url.includes('tiktok.com');
 
-        if (esPaginaSocial) {
-            // Si es una pestaña de una plataforma social, la cerramos
+        if (isSocialPage) {
+            // If it's a tab from a social platform, we close it
             chrome.tabs.remove(tabId);
         }
     } catch (error) {
-        console.error("[Extension] Error al cerrar pestaña:", error);
+        console.error("[Extension] Error closing tab:", error);
     }
 }
 
-// Manejo seguro de respuesta para evitar errores de conexión
-function responderSeguro(sendResponse, data) {
+// Safe response handling to avoid connection errors
+function respondSafely(sendResponse, data) {
     try {
         sendResponse(data);
     } catch (error) {
-        console.error("[Extension] Error al enviar respuesta:", error);
+        console.error("[Extension] Error sending response:", error);
     }
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log("[Extension] Mensaje recibido:", request.action, request);
+    console.log("[Extension] Message received:", request.action, request);
 
-    if (request.action === 'incrementarContador') {
-        chrome.storage.sync.get(['limites', 'contador', 'ultimoDia'], (data) => {
+    if (request.action === 'incrementCounter') {
+        chrome.storage.sync.get(['limits', 'counter', 'lastDay'], (data) => {
             try {
-                let hoy = new Date().toLocaleDateString();
-                let sitio = request.sitio;
+                let today = new Date().toLocaleDateString();
+                let site = request.site;
 
-                // Inicializar objetos si no existen
-                if (!data.limites) data.limites = {
+                // Initialize objects if they don't exist
+                if (!data.limits) data.limits = {
                     "youtube.com": 10,
                     "instagram.com": 15,
                     "tiktok.com": 20
                 };
-                if (!data.contador) data.contador = {};
+                if (!data.counter) data.counter = {};
 
-                // Reiniciar contadores si es un nuevo día
-                if (data.ultimoDia !== hoy) {
-                    console.log("[Extension] Nuevo día detectado, reiniciando contadores.");
-                    data.contador = {};
-                    data.ultimoDia = hoy;
+                // Reset counters if it's a new day
+                if (data.lastDay !== today) {
+                    console.log("[Extension] New day detected, resetting counters.");
+                    data.counter = {};
+                    data.lastDay = today;
                 }
 
-                // Incrementar contador para el sitio específico
-                data.contador[sitio] = (data.contador[sitio] || 0) + 1;
-                let limiteActual = data.limites[sitio] || 10; // Por defecto 10 si no definido
+                // Increment counter for the specific site
+                data.counter[site] = (data.counter[site] || 0) + 1;
+                let currentLimit = data.limits[site] || 10; // Default to 10 if not defined
 
-                console.log("[Extension] Contador incrementado:", sitio, data.contador[sitio], "/", limiteActual);
+                console.log("[Extension] Counter incremented:", site, data.counter[site], "/", currentLimit);
 
                 chrome.storage.sync.set(data, () => {
                     try {
-                        const alcanzado = data.contador[sitio] >= limiteActual;
+                        const reached = data.counter[site] >= currentLimit;
 
-                        // Si se alcanzó el límite, abrir página de límite alcanzado en una nueva pestaña y cerrar la original
-                        if (alcanzado && sender && sender.tab && sender.tab.id) {
-                            console.log("[Extension] Límite alcanzado para:", sitio);
-                            // Guardar el tabId original para poder cerrarlo después
+                        // If limit reached, open limit reached page in a new tab and close the original
+                        if (reached && sender && sender.tab && sender.tab.id) {
+                            console.log("[Extension] Limit reached for:", site);
+                            // Save original tabId to be able to close it later
                             const originalTabId = sender.tab.id;
 
-                            // Crear una nueva pestaña con la página de límite alcanzado
-                            chrome.tabs.create({ url: chrome.runtime.getURL(`limit-reached.html?sitio=${sitio}`) }, () => {
-                                // Después de crear la nueva pestaña, cerrar la original
+                            // Create a new tab with the limit reached page
+                            chrome.tabs.create({ url: chrome.runtime.getURL(`limit-reached.html?site=${site}`) }, () => {
+                                // After creating the new tab, close the original
                                 try {
                                     chrome.tabs.remove(originalTabId);
                                 } catch (error) {
-                                    console.error("[Extension] Error al cerrar pestaña original:", error);
+                                    console.error("[Extension] Error closing original tab:", error);
                                 }
                             });
                         }
 
-                        responderSeguro(sendResponse, {
-                            alcanzado: alcanzado,
-                            contadorHoy: data.contador[sitio],
-                            limite: limiteActual
+                        respondSafely(sendResponse, {
+                            reached: reached,
+                            todayCounter: data.counter[site],
+                            limit: currentLimit
                         });
                     } catch (error) {
-                        console.error("[Extension] Error después de guardar contador:", error);
-                        responderSeguro(sendResponse, { error: "Error interno" });
+                        console.error("[Extension] Error after saving counter:", error);
+                        respondSafely(sendResponse, { error: "Internal error" });
                     }
                 });
             } catch (error) {
-                console.error("[Extension] Error procesando incremento de contador:", error);
-                responderSeguro(sendResponse, { error: "Error interno" });
+                console.error("[Extension] Error processing counter increment:", error);
+                respondSafely(sendResponse, { error: "Internal error" });
             }
         });
-        return true; // Importante para respuestas asíncronas
-    } else if (request.action === 'obtenerEstado') {
-        chrome.storage.sync.get(['limites', 'contador', 'ultimoDia'], (data) => {
+        return true; // Important for asynchronous responses
+    } else if (request.action === 'getStatus') {
+        chrome.storage.sync.get(['limits', 'counter', 'lastDay'], (data) => {
             try {
-                let hoy = new Date().toLocaleDateString();
+                let today = new Date().toLocaleDateString();
 
-                // Inicializar objetos si no existen
-                if (!data.limites) data.limites = {
+                // Initialize objects if they don't exist
+                if (!data.limits) data.limits = {
                     "youtube.com": 10,
                     "instagram.com": 15,
                     "tiktok.com": 20
                 };
-                if (!data.contador) data.contador = {};
+                if (!data.counter) data.counter = {};
 
-                // Reiniciar contadores si es un nuevo día
-                if (data.ultimoDia !== hoy) {
-                    console.log("[Extension] Nuevo día detectado, reiniciando contadores.");
-                    data.contador = {};
-                    data.ultimoDia = hoy;
-                    chrome.storage.sync.set({ contador: {}, ultimoDia: hoy });
+                // Reset counters if it's a new day
+                if (data.lastDay !== today) {
+                    console.log("[Extension] New day detected, resetting counters.");
+                    data.counter = {};
+                    data.lastDay = today;
+                    chrome.storage.sync.set({ counter: {}, lastDay: today });
                 }
 
-                console.log("[Extension] Estado actual:", {
-                    contador: data.contador,
-                    limites: data.limites
+                console.log("[Extension] Current state:", {
+                    counter: data.counter,
+                    limits: data.limits
                 });
 
-                responderSeguro(sendResponse, {
-                    contador: data.contador,
-                    limites: data.limites
+                respondSafely(sendResponse, {
+                    counter: data.counter,
+                    limits: data.limits
                 });
             } catch (error) {
-                console.error("[Extension] Error al obtener estado:", error);
-                responderSeguro(sendResponse, { error: "Error interno" });
+                console.error("[Extension] Error getting state:", error);
+                respondSafely(sendResponse, { error: "Internal error" });
             }
         });
-        return true; // Importante para respuestas asíncronas
-    } else if (request.action === 'actualizarLimite') {
-        chrome.storage.sync.get(['limites'], (data) => {
+        return true; // Important for asynchronous responses
+    } else if (request.action === 'updateLimit') {
+        chrome.storage.sync.get(['limits'], (data) => {
             try {
-                if (!data.limites) data.limites = {};
-                data.limites[request.sitio] = request.nuevoLimite;
+                if (!data.limits) data.limits = {};
+                data.limits[request.site] = request.newLimit;
 
-                console.log("[Extension] Límite actualizado:", request.sitio, request.nuevoLimite);
+                console.log("[Extension] Limit updated:", request.site, request.newLimit);
 
-                chrome.storage.sync.set({ limites: data.limites }, () => {
-                    responderSeguro(sendResponse, { success: true });
+                chrome.storage.sync.set({ limits: data.limits }, () => {
+                    respondSafely(sendResponse, { success: true });
                 });
             } catch (error) {
-                console.error("[Extension] Error al actualizar límite:", error);
-                responderSeguro(sendResponse, { error: "Error interno" });
+                console.error("[Extension] Error updating limit:", error);
+                respondSafely(sendResponse, { error: "Internal error" });
             }
         });
-        return true; // Importante para respuestas asíncronas
-    } else if (request.action === 'reiniciarContadores') {
+        return true; // Important for asynchronous responses
+    } else if (request.action === 'resetCounters') {
         try {
-            chrome.storage.sync.get(['limites'], (data) => {
-                const limites = data.limites || {
+            chrome.storage.sync.get(['limits'], (data) => {
+                const limits = data.limits || {
                     "youtube.com": 10,
                     "instagram.com": 15,
                     "tiktok.com": 20
                 };
 
-                // Reiniciar solo los contadores, mantener los límites
+                // Reset only the counters, keep the limits
                 chrome.storage.sync.set({
-                    limites: limites,
-                    contador: {},
-                    ultimoDia: new Date().toLocaleDateString()
+                    limits: limits,
+                    counter: {},
+                    lastDay: new Date().toLocaleDateString()
                 }, () => {
-                    console.log("[Extension] Contadores reiniciados manualmente.");
-                    responderSeguro(sendResponse, { success: true });
+                    console.log("[Extension] Counters manually reset.");
+                    respondSafely(sendResponse, { success: true });
                 });
             });
         } catch (error) {
-            console.error("[Extension] Error al reiniciar contadores:", error);
-            responderSeguro(sendResponse, { error: "Error interno" });
+            console.error("[Extension] Error resetting counters:", error);
+            respondSafely(sendResponse, { error: "Internal error" });
         }
-        return true; // Importante para respuestas asíncronas
-    } else if (request.action === 'abrirPaginaLimite') {
+        return true; // Important for asynchronous responses
+    } else if (request.action === 'openLimitPage') {
         try {
-            // Abrir página límite en una nueva pestaña y cerrar la original
+            // Open limit page in a new tab and close the original
             if (sender && sender.tab && sender.tab.id) {
                 const originalTabId = sender.tab.id;
 
-                // Crear una nueva pestaña con la página de límite alcanzado
-                chrome.tabs.create({ url: chrome.runtime.getURL(`limit-reached.html?sitio=${request.sitio}`) }, () => {
-                    // Después de crear la nueva pestaña, cerrar la original
+                // Create a new tab with the limit reached page
+                chrome.tabs.create({ url: chrome.runtime.getURL(`limit-reached.html?site=${request.site}`) }, () => {
+                    // After creating the new tab, close the original
                     try {
                         chrome.tabs.remove(originalTabId);
                     } catch (error) {
-                        console.error("[Extension] Error al cerrar pestaña original:", error);
+                        console.error("[Extension] Error closing original tab:", error);
                     }
                 });
             }
-            responderSeguro(sendResponse, { success: true });
+            respondSafely(sendResponse, { success: true });
         } catch (error) {
-            console.error("[Extension] Error al abrir página de límite:", error);
-            responderSeguro(sendResponse, { error: "Error interno" });
+            console.error("[Extension] Error opening limit page:", error);
+            respondSafely(sendResponse, { error: "Internal error" });
         }
         return true;
-    } else if (request.action === 'abrirPopup') {
+    } else if (request.action === 'openPopup') {
         try {
-            // Intentar abrir el popup directamente
+            // Try to open the popup directly
             chrome.action.openPopup();
-            responderSeguro(sendResponse, { success: true });
+            respondSafely(sendResponse, { success: true });
         } catch (error) {
-            console.error("[Extension] Error al abrir popup:", error);
-            responderSeguro(sendResponse, { error: "Error interno" });
+            console.error("[Extension] Error opening popup:", error);
+            respondSafely(sendResponse, { error: "Internal error" });
         }
         return true;
     }
+
+    return false;
 });

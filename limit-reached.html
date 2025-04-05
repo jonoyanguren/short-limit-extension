@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Límite Diario Alcanzado</title>
+    <title>Daily Limit Reached</title>
     <style>
       body {
         font-family: "Arial", sans-serif;
@@ -44,9 +44,9 @@
         text-align: left;
       }
 
-      #sitio,
-      #contadorHoy,
-      #limite {
+      #site,
+      #todayCounter,
+      #limit {
         font-weight: bold;
       }
 
@@ -93,27 +93,28 @@
   <body>
     <div class="container">
       <div class="icon">⏱️</div>
-      <h1>¡Límite diario alcanzado!</h1>
-      <p>Has alcanzado tu límite diario de contenido para esta plataforma.</p>
+      <h1>Daily limit reached!</h1>
+      <p>You have reached your daily content limit for this platform.</p>
 
       <div class="details">
-        <p>Plataforma: <span id="sitio">-</span></p>
+        <p>Platform: <span id="site">-</span></p>
         <p>
-          Contenido visto hoy: <span id="contadorHoy">-</span>/<span id="limite"
+          Content viewed today: <span id="todayCounter">-</span>/<span
+            id="limit"
             >-</span
           >
         </p>
-        <p>Tiempo restante: <span id="tiempoRestante">-</span></p>
+        <p>Time remaining: <span id="timeRemaining">-</span></p>
       </div>
 
       <p class="suggestion">
-        Puedes configurar un límite diferente desde la extensión o volver mañana
-        para reiniciar tu contador.
+        You can configure a different limit from the extension or come back
+        tomorrow to reset your counter.
       </p>
 
       <div class="buttons">
-        <button class="primary" id="configurar">Configurar límites</button>
-        <button class="secondary" id="irGoogle">Ir a Google</button>
+        <button class="primary" id="configure">Configure limits</button>
+        <button class="secondary" id="goToGoogle">Go to Google</button>
       </div>
     </div>
 

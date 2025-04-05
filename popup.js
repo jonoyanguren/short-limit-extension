@@ -1,68 +1,68 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const limiteInput = document.getElementById('limite');
-    const guardarBtn = document.getElementById('guardar');
-    const estado = document.getElementById('estado');
-    const contador = document.getElementById('contador');
-    const limiteDiarioSpan = document.getElementById('limiteDiario');
-    const cerrarBtn = document.getElementById('cerrar');
+    const limitInput = document.getElementById('limit');
+    const saveBtn = document.getElementById('save');
+    const status = document.getElementById('status');
+    const counter = document.getElementById('counter');
+    const dailyLimitSpan = document.getElementById('dailyLimit');
+    const closeBtn = document.getElementById('close');
     const siteCards = document.querySelectorAll('.site-card');
-    const sitioActualLabel = document.getElementById('sitio-actual');
+    const currentSiteLabel = document.getElementById('current-site');
 
-    // Para debug
+    // For debug
     const debugInfo = document.createElement('div');
     debugInfo.style.fontSize = '10px';
     debugInfo.style.color = '#888';
     debugInfo.style.marginTop = '10px';
     document.querySelector('.container').appendChild(debugInfo);
 
-    // Obtener el dominio de los parámetros URL si existe (caso de apertura desde limit-reached.html)
+    // Get domain from URL parameters if exists (when opened from limit-reached.html)
     const urlParams = new URLSearchParams(window.location.search);
-    let dominioActual = urlParams.get('sitio') || 'youtube.com';
+    let currentDomain = urlParams.get('site') || 'youtube.com';
 
-    // Función para obtener el nombre amigable del sitio
-    function getNombreSitio(dominio) {
-        switch (dominio) {
+    // Function to get friendly name of the site
+    function getSiteName(domain) {
+        switch (domain) {
             case 'youtube.com': return 'YouTube';
             case 'instagram.com': return 'Instagram';
             case 'tiktok.com': return 'TikTok';
-            default: return dominio;
+            default: return domain;
         }
     }
 
-    // Función para actualizar la interfaz visual según el sitio seleccionado
-    function actualizarSitioSeleccionado() {
-        // Quitar la clase active de todas las tarjetas
+    // Function to update visual interface based on selected site
+    function updateSelectedSite() {
+        // Remove active class from all cards
         siteCards.forEach(card => {
             card.classList.remove('active');
         });
 
-        // Añadir la clase active a la tarjeta seleccionada
-        const tarjetaSeleccionada = document.querySelector(`.site-card[data-site="${dominioActual}"]`);
-        if (tarjetaSeleccionada) {
-            tarjetaSeleccionada.classList.add('active');
+        // Add active class to selected card
+        const selectedCard = document.querySelector(`.site-card[data-site="${currentDomain}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('active');
         }
 
-        // Actualizar el texto del sitio actual
-        sitioActualLabel.textContent = `Configurar ${getNombreSitio(dominioActual)}:`;
+        // Update current site text
+        currentSiteLabel.textContent = `Configure ${getSiteName(currentDomain)}:`;
 
-        // Actualizar el contador para el sitio seleccionado
-        actualizarContador();
+        // Update counter for selected site
+        updateCounter();
     }
 
-    // Configurar los manejadores de eventos para las tarjetas de sitios
+    // Set up event handlers for site cards
     siteCards.forEach(card => {
         card.addEventListener('click', () => {
-            dominioActual = card.getAttribute('data-site');
-            actualizarSitioSeleccionado();
+            currentDomain = card.getAttribute('data-site');
+            updateSelectedSite();
         });
     });
 
-    function actualizarContador() {
-        // Mostrar mensaje de carga
-        contador.textContent = "...";
-        limiteDiarioSpan.textContent = "...";
+    function updateCounter() {
+        // Show loading message
+        counter.textContent = "...";
+        dailyLimitSpan.textContent = "...";
 
-        chrome.runtime.sendMessage({ action: 'obtenerEstado' }, (response) => {
+        chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
             if (chrome.runtime.lastError) {
                 console.error("[Extension] Error:", chrome.runtime.lastError);
                 debugInfo.textContent = `Error: ${chrome.runtime.lastError.message}`;
@@ -71,115 +71,115 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Debug info
             debugInfo.textContent = `Data: ${JSON.stringify(response)}`;
-            console.log("Respuesta de obtenerEstado:", response);
+            console.log("Response from getStatus:", response);
 
             if (!response) {
-                debugInfo.textContent += " | ¡Respuesta vacía!";
+                debugInfo.textContent += " | Empty response!";
                 return;
             }
 
-            const contadores = response.contador || {};
-            const limites = response.limites || {};
+            const counters = response.counter || {};
+            const limits = response.limits || {};
 
-            // Debug contadores específicos
-            debugInfo.textContent += ` | Dominio: ${dominioActual} | Contador: ${contadores[dominioActual]} | Límite: ${limites[dominioActual]}`;
+            // Debug specific counters
+            debugInfo.textContent += ` | Domain: ${currentDomain} | Counter: ${counters[currentDomain]} | Limit: ${limits[currentDomain]}`;
 
-            // Verificar explícitamente si el contador existe para este dominio
-            const contadorValor = typeof contadores[dominioActual] !== 'undefined' ? contadores[dominioActual] : 0;
-            const limiteValor = typeof limites[dominioActual] !== 'undefined' ? limites[dominioActual] : 10;
+            // Explicitly check if counter exists for this domain
+            const counterValue = typeof counters[currentDomain] !== 'undefined' ? counters[currentDomain] : 0;
+            const limitValue = typeof limits[currentDomain] !== 'undefined' ? limits[currentDomain] : 10;
 
-            contador.textContent = contadorValor;
-            limiteDiarioSpan.textContent = limiteValor;
-            limiteInput.value = limiteValor;
+            counter.textContent = counterValue;
+            dailyLimitSpan.textContent = limitValue;
+            limitInput.value = limitValue;
 
-            // Actualizar también los contadores en las tarjetas de sitios
+            // Also update counters in site cards
             siteCards.forEach(card => {
-                const sitio = card.getAttribute('data-site');
-                const contadorSitio = typeof contadores[sitio] !== 'undefined' ? contadores[sitio] : 0;
-                const limiteSitio = typeof limites[sitio] !== 'undefined' ? limites[sitio] : 10;
+                const site = card.getAttribute('data-site');
+                const sitecounter = typeof counters[site] !== 'undefined' ? counters[site] : 0;
+                const siteLimit = typeof limits[site] !== 'undefined' ? limits[site] : 10;
 
-                // Actualizar el contador en la tarjeta
-                const infoContador = card.querySelector('.site-counter');
-                if (infoContador) {
-                    infoContador.textContent = `${contadorSitio}/${limiteSitio}`;
+                // Update counter in the card
+                const counterInfo = card.querySelector('.site-counter');
+                if (counterInfo) {
+                    counterInfo.textContent = `${sitecounter}/${siteLimit}`;
 
-                    // Destacar visualmente si está cerca del límite
-                    if (contadorSitio >= limiteSitio) {
-                        infoContador.style.color = 'red';
-                        infoContador.style.fontWeight = 'bold';
-                        infoContador.style.backgroundColor = 'rgba(255,200,200,0.6)';
-                    } else if (contadorSitio >= limiteSitio * 0.8) {
-                        infoContador.style.color = 'darkorange';
-                        infoContador.style.fontWeight = 'bold';
-                        infoContador.style.backgroundColor = 'rgba(255,230,200,0.6)';
+                    // Visually highlight if close to limit
+                    if (sitecounter >= siteLimit) {
+                        counterInfo.style.color = 'red';
+                        counterInfo.style.fontWeight = 'bold';
+                        counterInfo.style.backgroundColor = 'rgba(255,200,200,0.6)';
+                    } else if (sitecounter >= siteLimit * 0.8) {
+                        counterInfo.style.color = 'darkorange';
+                        counterInfo.style.fontWeight = 'bold';
+                        counterInfo.style.backgroundColor = 'rgba(255,230,200,0.6)';
                     } else {
-                        infoContador.style.color = 'green';
-                        infoContador.style.fontWeight = 'normal';
-                        infoContador.style.backgroundColor = 'rgba(200,255,200,0.6)';
+                        counterInfo.style.color = 'green';
+                        counterInfo.style.fontWeight = 'normal';
+                        counterInfo.style.backgroundColor = 'rgba(200,255,200,0.6)';
                     }
                 }
             });
         });
     }
 
-    guardarBtn.addEventListener('click', () => {
-        const nuevoLimite = parseInt(limiteInput.value, 10);
-        if (isNaN(nuevoLimite) || nuevoLimite < 1) {
-            estado.textContent = "❌ El límite debe ser un número mayor a 0";
+    saveBtn.addEventListener('click', () => {
+        const newLimit = parseInt(limitInput.value, 10);
+        if (isNaN(newLimit) || newLimit < 1) {
+            status.textContent = "❌ Limit must be a number greater than 0";
             return;
         }
 
-        // Mostrar estado de guardado
-        estado.textContent = "Guardando...";
+        // Show save status
+        status.textContent = "Saving...";
 
         chrome.runtime.sendMessage({
-            action: 'actualizarLimite',
-            sitio: dominioActual,
-            nuevoLimite: nuevoLimite
+            action: 'updateLimit',
+            site: currentDomain,
+            newLimit: newLimit
         }, (response) => {
             if (chrome.runtime.lastError) {
-                console.error("[Extension] Error al guardar:", chrome.runtime.lastError);
-                estado.textContent = "❌ Error al guardar límite";
+                console.error("[Extension] Error saving:", chrome.runtime.lastError);
+                status.textContent = "❌ Error saving limit";
                 return;
             }
 
-            estado.textContent = `✅ Límite guardado: ${nuevoLimite}`;
-            actualizarContador();
+            status.textContent = `✅ Limit saved: ${newLimit}`;
+            updateCounter();
         });
     });
 
-    // Manejar el botón de cerrar (solo si estamos en un popup abierto como pestaña)
-    if (cerrarBtn) {
-        cerrarBtn.addEventListener('click', () => {
-            // Si estamos en un popup como pestaña
+    // Handle close button (only if we're in a popup opened as a tab)
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            // If we're in a popup as a tab
             if (window.history.length > 1) {
-                window.history.back(); // Volver a la página anterior
+                window.history.back(); // Go back to previous page
             } else {
-                window.close(); // Intentar cerrar la pestaña
+                window.close(); // Try to close the tab
             }
         });
     }
 
-    // Añadir botón para reiniciar contadores
+    // Add button to reset counters
     const resetBtn = document.createElement('button');
     resetBtn.classList.add('full-width');
     resetBtn.style.marginTop = '10px';
     resetBtn.style.backgroundColor = '#f44336';
-    resetBtn.textContent = 'Reiniciar contadores';
+    resetBtn.textContent = 'Reset counters';
     resetBtn.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'reiniciarContadores' }, (response) => {
+        chrome.runtime.sendMessage({ action: 'resetCounters' }, (response) => {
             if (chrome.runtime.lastError) {
-                console.error("[Extension] Error al reiniciar:", chrome.runtime.lastError);
-                estado.textContent = "❌ Error al reiniciar contadores";
+                console.error("[Extension] Error resetting:", chrome.runtime.lastError);
+                status.textContent = "❌ Error resetting counters";
                 return;
             }
 
-            estado.textContent = "✅ Contadores reiniciados";
-            actualizarContador();
+            status.textContent = "✅ Counters reset";
+            updateCounter();
         });
     });
     document.querySelector('.container').appendChild(resetBtn);
 
-    // Inicializar la interfaz 
-    actualizarSitioSeleccionado();
+    // Initialize interface 
+    updateSelectedSite();
 });

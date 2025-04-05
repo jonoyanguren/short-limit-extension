@@ -1,99 +1,100 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const sitioElement = document.getElementById('sitio');
-    const contadorHoyElement = document.getElementById('contadorHoy');
-    const limiteElement = document.getElementById('limite');
-    const tiempoRestanteElement = document.getElementById('tiempoRestante');
-    const configurarBtn = document.getElementById('configurar');
-    const irGoogleBtn = document.getElementById('irGoogle');
+    const siteElement = document.getElementById('site');
+    const todayCounterElement = document.getElementById('todayCounter');
+    const limitElement = document.getElementById('limit');
+    const timeRemainingElement = document.getElementById('timeRemaining');
+    const configureBtn = document.getElementById('configure');
+    const goToGoogleBtn = document.getElementById('goToGoogle');
 
-    // Obtener información del sitio desde el URL (pasado como parámetro)
+    // Get site information from URL (passed as parameter)
+    // Support both 'site' (new) and 'sitio' (old) parameters for backward compatibility
     const urlParams = new URLSearchParams(window.location.search);
-    const sitio = urlParams.get('sitio') || 'desconocido';
+    const site = urlParams.get('site') || urlParams.get('sitio') || 'unknown';
 
-    // Función para formatear el tiempo restante
-    function formatearTiempoRestante(milisegundos) {
-        const segundos = Math.floor(milisegundos / 1000);
-        const minutos = Math.floor(segundos / 60);
-        const horas = Math.floor(minutos / 60);
+    // Function to format remaining time
+    function formatTimeRemaining(milliseconds) {
+        const seconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
 
-        if (horas > 0) {
-            return `${horas} h ${minutos % 60} min`;
-        } else if (minutos > 0) {
-            return `${minutos} min ${segundos % 60} s`;
+        if (hours > 0) {
+            return `${hours} h ${minutes % 60} min`;
+        } else if (minutes > 0) {
+            return `${minutes} min ${seconds % 60} s`;
         } else {
-            return `${segundos} segundos`;
+            return `${seconds} seconds`;
         }
     }
 
-    // Actualizar información de límites
-    function actualizarInfo() {
-        chrome.runtime.sendMessage({ action: 'obtenerEstado' }, (response) => {
+    // Update limit information
+    function updateInfo() {
+        chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
             if (chrome.runtime.lastError) {
                 console.error("[Extension] Error:", chrome.runtime.lastError);
                 return;
             }
 
             if (response) {
-                const contadores = response.contador || {};
-                const limites = response.limites || {};
-                const contador = contadores[sitio] || 0;
-                const limite = limites[sitio] || 10;
+                const counters = response.counter || {};
+                const limits = response.limits || {};
+                const counter = counters[site] || 0;
+                const limit = limits[site] || 10;
 
-                // Mostrar el nombre del sitio de manera amigable
-                let sitioMostrar = sitio;
-                if (sitio === 'youtube.com') sitioMostrar = 'YouTube';
-                if (sitio === 'instagram.com') sitioMostrar = 'Instagram';
-                if (sitio === 'tiktok.com') sitioMostrar = 'TikTok';
+                // Show friendly site name
+                let siteToShow = site;
+                if (site === 'youtube.com') siteToShow = 'YouTube';
+                if (site === 'instagram.com') siteToShow = 'Instagram';
+                if (site === 'tiktok.com') siteToShow = 'TikTok';
 
-                sitioElement.textContent = sitioMostrar;
-                contadorHoyElement.textContent = contador;
-                limiteElement.textContent = limite;
+                siteElement.textContent = siteToShow;
+                todayCounterElement.textContent = counter;
+                limitElement.textContent = limit;
 
-                // Calcular tiempo restante hasta medianoche
-                const ahora = new Date();
-                const medianoche = new Date();
-                medianoche.setHours(24, 0, 0, 0);
-                const tiempoRestante = medianoche - ahora;
+                // Calculate remaining time until midnight
+                const now = new Date();
+                const midnight = new Date();
+                midnight.setHours(24, 0, 0, 0);
+                const timeRemaining = midnight - now;
 
-                tiempoRestanteElement.textContent = formatearTiempoRestante(tiempoRestante);
+                timeRemainingElement.textContent = formatTimeRemaining(timeRemaining);
 
-                // Actualizar el botón para ir a Google o a la página principal
-                irGoogleBtn.textContent = 'Ir a Google';
+                // Update button to go to Google or main page
+                goToGoogleBtn.textContent = 'Go to Google';
             }
         });
     }
 
-    // Configurar botones
-    configurarBtn.addEventListener('click', () => {
-        // Abrir el popup directamente como página con el parámetro del sitio
-        const popupUrl = chrome.runtime.getURL(`popup.html?sitio=${sitio}`);
+    // Configure buttons
+    configureBtn.addEventListener('click', () => {
+        // Open popup directly as a page with the site parameter
+        const popupUrl = chrome.runtime.getURL(`popup.html?site=${site}`);
         window.location.href = popupUrl;
     });
 
-    irGoogleBtn.addEventListener('click', () => {
+    goToGoogleBtn.addEventListener('click', () => {
         window.location.href = 'https://google.com';
     });
 
-    // Añadir botón para volver a la página principal (sin los contenidos limitados)
+    // Add button to return to main page (without limited content)
     const container = document.querySelector('.buttons');
     if (container) {
-        const volverBtn = document.createElement('button');
-        volverBtn.classList.add('secondary');
-        volverBtn.textContent = 'Volver a ' + (sitio === 'youtube.com' ? 'YouTube' :
-            sitio === 'instagram.com' ? 'Instagram' :
-                sitio === 'tiktok.com' ? 'TikTok' : sitio);
+        const returnBtn = document.createElement('button');
+        returnBtn.classList.add('secondary');
+        returnBtn.textContent = 'Return to ' + (site === 'youtube.com' ? 'YouTube' :
+            site === 'instagram.com' ? 'Instagram' :
+                site === 'tiktok.com' ? 'TikTok' : site);
 
-        volverBtn.addEventListener('click', () => {
-            // Volver a la página principal del sitio (sin entrar a contenido limitado)
-            window.location.href = `https://${sitio}`;
+        returnBtn.addEventListener('click', () => {
+            // Return to the main page of the site (without entering limited content)
+            window.location.href = `https://${site}`;
         });
 
-        container.appendChild(volverBtn);
+        container.appendChild(returnBtn);
     }
 
-    // Actualizar información inicial
-    actualizarInfo();
+    // Update initial information
+    updateInfo();
 
-    // Actualizar cada minuto
-    setInterval(actualizarInfo, 60000);
+    // Update every minute
+    setInterval(updateInfo, 60000);
 });
