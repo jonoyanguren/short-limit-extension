@@ -6,6 +6,7 @@ let extensionValid = true;
 let countedContent = new Set(); // To avoid counting the same content multiple times
 let videoObserverStarted = false;
 let lastContextCheck = 0;
+let stopPeriodicCheck = null; // Will store cleanup function for periodic checks
 
 // Check if the extension context is still valid
 function checkContext() {
@@ -164,17 +165,38 @@ function isElementVisible(element) {
 // Simplify TikTok verification
 function isTikTokVideo() {
     const isTikTok = domain.includes('tiktok.com');
-    const isVideo = location.pathname.includes('/video/') ||
+
+    // First check: URL-based detection (specific video pages)
+    const isVideoURL = location.pathname.includes('/video/') ||
         location.pathname.includes('@') && /\d+/.test(location.pathname);
+
+    // Second check: detect videos playing in the main feed
+    let isVideoPlaying = false;
+    if (isTikTok && !isVideoURL) {
+        // On TikTok's main feed, check for active videos
+        const videos = document.querySelectorAll('video');
+        isVideoPlaying = Array.from(videos).some(video => {
+            return isElementVisible(video) &&
+                !video.paused &&
+                video.currentTime > 0 &&
+                video.readyState > 2 && // HAVE_CURRENT_DATA or better
+                video.offsetWidth > 200; // Only count reasonably sized videos
+        });
+
+        if (isVideoPlaying) {
+            console.log("[Extension] TikTok video detected in feed");
+        }
+    }
 
     // Add more logging for TikTok
     if (isTikTok) {
         console.log("[Extension] Checking TikTok:", location.href);
         console.log("[Extension] TikTok pathname:", location.pathname);
-        console.log("[Extension] Is TikTok video?", isVideo);
+        console.log("[Extension] Is TikTok video URL?", isVideoURL);
+        console.log("[Extension] Is TikTok video playing?", isVideoPlaying);
     }
 
-    return isTikTok && isVideo;
+    return isTikTok && (isVideoURL || isVideoPlaying);
 }
 
 // Get a unique identifier for the current video or image
@@ -250,6 +272,48 @@ function getContentId() {
         if (location.pathname.includes('@') || location.pathname.includes('/video/')) {
             console.log("[Extension] Usando pathname completo para TikTok:", location.pathname);
             return `tiktok-${location.pathname}`;
+        }
+
+        // For the main feed, find the currently playing video and use its unique ID
+        const videos = document.querySelectorAll('video');
+        const playingVideos = Array.from(videos).filter(video =>
+            isElementVisible(video) && !video.paused && video.currentTime > 0
+        );
+
+        if (playingVideos.length > 0) {
+            const playingVideo = playingVideos[0];
+
+            // First, try to use the video's dataset ID if we set one earlier
+            if (playingVideo.dataset && playingVideo.dataset.videoId) {
+                console.log("[Extension] Using dataset videoId:", playingVideo.dataset.videoId);
+                return `tiktok-feed-video-${playingVideo.dataset.videoId}`;
+            }
+
+            // Then try to get an identifier from the source
+            const videoSrc = playingVideo.src || playingVideo.currentSrc || '';
+            if (videoSrc) {
+                const srcMatch = videoSrc.match(/\/([a-zA-Z0-9_-]{6,})\./);
+                if (srcMatch && srcMatch[1]) {
+                    return `tiktok-feed-video-${srcMatch[1]}`;
+                }
+            }
+
+            // Look for any username in the vicinity of the video
+            const nearbyUsername = findNearbyUsername(playingVideo);
+            if (nearbyUsername) {
+                // Use a shorter time window for same-user videos (30 seconds)
+                return `tiktok-feed-${nearbyUsername}-${Math.floor(Date.now() / 30000)}`;
+            }
+
+            // Use the video's position as part of the identifier as a last resort
+            try {
+                const rect = playingVideo.getBoundingClientRect();
+                const posData = `${Math.round(rect.top)}-${Math.round(rect.left)}`;
+                return `tiktok-feed-pos-${posData}-${Math.floor(Date.now() / 20000)}`;
+            } catch (e) {
+                // Fallback to time-based windows (15 seconds) if all else fails
+                return `tiktok-feed-video-${Math.floor(Date.now() / 15000)}`;
+            }
         }
     }
 
@@ -357,7 +421,8 @@ function iniciarObservadorDeVideos() {
 
 // Send message to background script with improved error handling
 function sendMessageSafely(message, callback) {
-    if (!checkContext()) {
+    // First, check if context is already known to be invalid
+    if (!extensionValid || !checkContext()) {
         console.log("[Extension] Cannot send message: invalid context");
         if (typeof callback === 'function') callback(null);
         return;
@@ -365,8 +430,17 @@ function sendMessageSafely(message, callback) {
 
     try {
         chrome.runtime.sendMessage(message, response => {
-            if (chrome.runtime.lastError) {
-                console.error("[Extension] Message error:", chrome.runtime.lastError);
+            const error = chrome.runtime.lastError;
+            if (error) {
+                console.error("[Extension] Message error:", error.message);
+
+                // Mark context as invalid if appropriate
+                if (error.message.includes("Extension context invalidated") ||
+                    error.message.includes("Invalid extension")) {
+                    extensionValid = false;
+                    cleanupResources(); // Clean up resources when context is invalidated
+                }
+
                 if (typeof callback === 'function') {
                     callback(null);
                 }
@@ -379,27 +453,110 @@ function sendMessageSafely(message, callback) {
         });
     } catch (error) {
         console.error("[Extension] Error sending message:", error);
-        if (typeof callback === 'function') {
-            callback(null);
-        }
 
+        // Mark context as invalid if appropriate
         if (error.message && (
             error.message.includes("Extension context invalidated") ||
             error.message.includes("Invalid extension") ||
             error.message.includes("Extension context")
         )) {
             extensionValid = false;
+            cleanupResources(); // Clean up resources when context is invalidated
         }
+
+        if (typeof callback === 'function') {
+            callback(null);
+        }
+    }
+}
+
+// Helper function to clean up resources when extension context is invalidated
+function cleanupResources() {
+    console.log("[Extension] Cleaning up resources due to invalid context");
+
+    try {
+        // Disconnect main observer
+        if (observer) {
+            try {
+                observer.disconnect();
+            } catch (e) {
+                console.log("[Extension] Error disconnecting main observer:", e.message);
+            }
+        }
+
+        // Remove video event listeners
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => {
+            try {
+                video.removeEventListener('play', handlePlaybackEvent);
+                video.removeEventListener('playing', handlePlaybackEvent);
+                video.removeEventListener('timeupdate', null);
+            } catch (e) {
+                // Ignore errors when removing listeners
+            }
+        });
+
+        // Reset video observer flag
+        videoObserverStarted = false;
+
+        // Disconnect site-specific observers
+        if (window._extensionTikTokObserver) {
+            try {
+                window._extensionTikTokObserver.disconnect();
+            } catch (e) {
+                console.log("[Extension] Error disconnecting TikTok observer:", e.message);
+            }
+        }
+
+        if (window._extensionInstagramObserver) {
+            try {
+                window._extensionInstagramObserver.disconnect();
+            } catch (e) {
+                console.log("[Extension] Error disconnecting Instagram observer:", e.message);
+            }
+        }
+
+        if (window._extensionYouTubeObserver) {
+            try {
+                window._extensionYouTubeObserver.disconnect();
+            } catch (e) {
+                console.log("[Extension] Error disconnecting YouTube observer:", e.message);
+            }
+        }
+
+        if (window._extensionVideoObserver) {
+            try {
+                window._extensionVideoObserver.disconnect();
+            } catch (e) {
+                console.log("[Extension] Error disconnecting video observer:", e.message);
+            }
+        }
+
+        // Clear any pending intervals or timeouts
+        // This is a bit aggressive but helps prevent zombie callbacks
+        const highestId = window.setTimeout(() => { }, 0);
+        for (let i = 0; i < highestId; i++) {
+            window.clearTimeout(i);
+        }
+    } catch (error) {
+        console.error("[Extension] Error during cleanup:", error);
     }
 }
 
 // Check for limited content
 function checkContent() {
     // Don't run if the extension context is invalid or there are ongoing checks
-    if (!checkContext() || checking || redirectInProgress) return;
+    if (!extensionValid || checking || redirectInProgress) return;
+
     checking = true;
 
     try {
+        // Double-check context before expensive operations
+        if (!checkContext()) {
+            checking = false;
+            return;
+        }
+
         logDebugInfo();
 
         // Debug especial para TikTok
@@ -490,6 +647,7 @@ function checkContent() {
 
             if (detectionError.message && detectionError.message.includes("Extension context")) {
                 extensionValid = false;
+                cleanupResources();
             }
             return;
         }
@@ -497,6 +655,12 @@ function checkContent() {
         console.log("[Extension] ¿Es contenido limitado?", esContenidoLimitado);
 
         if (esContenidoLimitado) {
+            // Check context once more before sending message
+            if (!extensionValid || !checkContext()) {
+                checking = false;
+                return;
+            }
+
             console.log("[Extension] Enviando mensaje para incrementar contador de: " + domain);
             sendMessageSafely({ action: 'incrementCounter', site: domain }, (response) => {
                 checking = false;
@@ -525,8 +689,10 @@ function checkContent() {
             });
         } else {
             checking = false;
-            // Verificar si ya se ha superado el límite
-            checkLimit();
+            // Call checkLimit only if context is still valid
+            if (extensionValid) {
+                checkLimit();
+            }
         }
     } catch (error) {
         console.error("[Extension] Error inesperado en checkContent:", error);
@@ -538,53 +704,14 @@ function checkContent() {
             error.message.includes("Extension context")
         )) {
             extensionValid = false;
-            // Limpiar recursos
-            if (observer) {
-                try {
-                    observer.disconnect();
-                } catch (e) {
-                    // Ignorar errores al desconectar
-                }
-            }
-
-            if (window._extensionVideoObserver) {
-                try {
-                    window._extensionVideoObserver.disconnect();
-                } catch (e) {
-                    // Ignorar errores al desconectar
-                }
-            }
-
-            if (window._extensionTikTokObserver) {
-                try {
-                    window._extensionTikTokObserver.disconnect();
-                } catch (e) {
-                    // Ignorar errores al desconectar
-                }
-            }
-
-            if (window._extensionInstagramObserver) {
-                try {
-                    window._extensionInstagramObserver.disconnect();
-                } catch (e) {
-                    // Ignorar errores al desconectar
-                }
-            }
-
-            if (window._extensionYouTubeObserver) {
-                try {
-                    window._extensionYouTubeObserver.disconnect();
-                } catch (e) {
-                    // Ignorar errores al desconectar
-                }
-            }
+            cleanupResources();
         }
     }
 }
 
 // Check if the limit has been reached
 function checkLimit() {
-    if (!checkContext() || redirectInProgress) return;
+    if (!extensionValid || !checkContext() || redirectInProgress) return;
 
     sendMessageSafely({ action: 'getStatus' }, (response) => {
         if (!response) return;
@@ -594,6 +721,12 @@ function checkLimit() {
 
         if (counters[domain] >= (limits[domain] || 10) && !redirectInProgress) {
             redirectInProgress = true;
+
+            // Double-check context before sending message
+            if (!extensionValid || !checkContext()) {
+                return;
+            }
+
             sendMessageSafely({
                 action: 'openLimitPage',
                 site: domain
@@ -688,63 +821,200 @@ const observer = new MutationObserver(mutations => {
 
 // Check periodically
 function checkPeriodically() {
-    setInterval(() => {
-        if (lastUrl !== location.href) {
-            lastUrl = location.href;
-            // Reset when URL changes
-            redirectInProgress = false;
-            countedContent = new Set();
-            console.log("[Extension] URL changed, resetting state");
+    // Store interval ID so we can clear it if needed
+    let checkIntervalId = null;
+
+    // Function to actually perform the check
+    const performCheck = () => {
+        // If context is invalid, stop checking
+        if (!extensionValid) {
+            console.log("[Extension] Stopping periodic checks due to invalid context");
+            if (checkIntervalId) {
+                clearInterval(checkIntervalId);
+            }
+            return;
         }
 
-        checkContent();
-        checkLimit();
-    }, 500);
+        try {
+            if (lastUrl !== location.href) {
+                lastUrl = location.href;
+                // Reset when URL changes
+                redirectInProgress = false;
+                countedContent = new Set();
+                console.log("[Extension] URL changed, resetting state");
+            }
+
+            // Add special detection for TikTok feed
+            if (domain.includes('tiktok.com') && !redirectInProgress) {
+                // Track the last video we saw
+                if (!window._extensionLastTikTokVideo) {
+                    window._extensionLastTikTokVideo = {
+                        id: null,
+                        timestamp: 0,
+                        videoCount: 0
+                    };
+                }
+
+                // Check for active videos in the TikTok feed
+                const videos = document.querySelectorAll('video');
+                const playingVideos = Array.from(videos).filter(video =>
+                    isElementVisible(video) &&
+                    !video.paused &&
+                    video.currentTime > 0 &&
+                    video.readyState > 2
+                );
+
+                // If we found a playing video
+                if (playingVideos.length > 0) {
+                    const currentVideo = playingVideos[0];
+                    const videoId = currentVideo.dataset.videoId || '';
+                    const currentTimestamp = Date.now();
+
+                    // Check if this is a different video or if enough time has passed
+                    const isDifferentVideo = videoId && videoId !== window._extensionLastTikTokVideo.id;
+                    const enoughTimePassed = (currentTimestamp - window._extensionLastTikTokVideo.timestamp) > 15000; // 15 seconds
+
+                    // If we've moved to a new video or enough time has passed with same video
+                    if (isDifferentVideo || enoughTimePassed) {
+                        console.log(`[Extension] TikTok video change detected: ${isDifferentVideo ? 'New video ID' : 'Time threshold'}`);
+
+                        // Update our tracking information
+                        window._extensionLastTikTokVideo = {
+                            id: videoId,
+                            timestamp: currentTimestamp,
+                            videoCount: window._extensionLastTikTokVideo.videoCount + 1
+                        };
+
+                        // Reset the checking flag to ensure we can trigger a check
+                        checking = false;
+
+                        // Force a content check
+                        console.log("[Extension] TikTok playing video detected in periodic check - triggering count");
+                        checkContent();
+                    }
+                }
+            } else {
+                // Regular checks for other sites
+                checkContent();
+            }
+
+            // Only check limit if content check didn't already do it
+            if (extensionValid && !redirectInProgress) {
+                checkLimit();
+            }
+        } catch (error) {
+            console.error("[Extension] Error in periodic check:", error);
+
+            // Handle context invalidation
+            if (error.message && (
+                error.message.includes("Extension context invalidated") ||
+                error.message.includes("Invalid extension")
+            )) {
+                extensionValid = false;
+                if (checkIntervalId) {
+                    clearInterval(checkIntervalId);
+                }
+            }
+        }
+    };
+
+    // Start interval
+    checkIntervalId = setInterval(performCheck, 500);
+
+    // Return function to stop checking
+    return () => {
+        if (checkIntervalId) {
+            clearInterval(checkIntervalId);
+        }
+    };
 }
 
-// Inicialización
-try {
-    // Verificar si el contexto es válido antes de iniciar
-    if (!checkContext()) {
-        console.log("[Extension] Contexto no válido al iniciar, no se inicializan observadores");
-        throw new Error("Contexto de extensión no válido");
+// Helper function to find a username near a video element
+function findNearbyUsername(videoElement) {
+    if (!videoElement || !document.contains(videoElement)) return null;
+
+    try {
+        // Look for parent elements up to 5 levels
+        let parentEl = videoElement.parentElement;
+        let searchLevel = 0;
+
+        while (parentEl && searchLevel < 5) {
+            // Look for username patterns in href attributes
+            const links = parentEl.querySelectorAll('a[href*="/@"]');
+            for (const link of links) {
+                const href = link.getAttribute('href') || '';
+                const usernameMatch = href.match(/\/@([a-zA-Z0-9_.]{3,30})/);
+                if (usernameMatch && usernameMatch[1]) {
+                    return usernameMatch[1];
+                }
+
+                // Also check link text content
+                const text = link.textContent || '';
+                const textMatch = text.match(/@([a-zA-Z0-9_.]{3,30})/);
+                if (textMatch && textMatch[1]) {
+                    return textMatch[1];
+                }
+            }
+
+            // Check all text content in spans and divs for username patterns
+            const textElements = parentEl.querySelectorAll('span, div, p, h1, h2, h3, h4, h5, h6');
+            for (const el of textElements) {
+                const text = el.textContent || '';
+                if (text.includes('@')) {
+                    const usernameMatch = text.match(/@([a-zA-Z0-9_.]{3,30})/);
+                    if (usernameMatch && usernameMatch[1]) {
+                        return usernameMatch[1];
+                    }
+                }
+            }
+
+            parentEl = parentEl.parentElement;
+            searchLevel++;
+        }
+    } catch (error) {
+        console.error("[Extension] Error finding username:", error);
     }
 
-    // Añadir un evento para manejar cuando la extensión se actualiza o desactiva
+    return null;
+}
+
+// Initialization
+try {
+    // Verify context is valid before starting
+    if (!checkContext()) {
+        console.log("[Extension] Invalid context at startup, observers will not be initialized");
+        throw new Error("Invalid extension context");
+    }
+
+    // Add event listener to handle page unload
     window.addEventListener('beforeunload', () => {
-        // Limpiar recursos
-        if (observer) {
-            try {
-                observer.disconnect();
-            } catch (e) { }
+        // Stop periodic checks
+        if (stopPeriodicCheck && typeof stopPeriodicCheck === 'function') {
+            stopPeriodicCheck();
         }
 
-        if (window._extensionVideoObserver) {
-            try {
-                window._extensionVideoObserver.disconnect();
-            } catch (e) { }
-        }
+        // Clean up resources
+        cleanupResources();
+    });
 
-        if (window._extensionTikTokObserver) {
-            try {
-                window._extensionTikTokObserver.disconnect();
-            } catch (e) { }
-        }
-
-        if (window._extensionInstagramObserver) {
-            try {
-                window._extensionInstagramObserver.disconnect();
-            } catch (e) { }
-        }
-
-        if (window._extensionYouTubeObserver) {
-            try {
-                window._extensionYouTubeObserver.disconnect();
-            } catch (e) { }
+    // Add event listener for visibility changes
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log("[Extension] Page hidden, conserving resources");
+            // Could pause intensive operations here
+        } else {
+            console.log("[Extension] Page visible again, resuming operations");
+            if (extensionValid && !checking) {
+                // Re-check context after page becomes visible again
+                if (checkContext()) {
+                    // Delay check to allow page to fully restore
+                    setTimeout(checkContent, 500);
+                }
+            }
         }
     });
 
-    // Iniciar observador principal
+    // Main observer initialization
     observer.observe(document, {
         subtree: true,
         childList: true,
@@ -752,15 +1022,21 @@ try {
         attributeFilter: ['src', 'style', 'class']
     });
 
-    // Verificación inicial con un pequeño retraso para permitir que la página cargue
-    // Más tiempo para sitios que tienen problemas con múltiples conteos
+    // Initial check with delay to allow page to load
+    // Longer delay for sites with multiple counting issues
     const initialDelay =
         domain.includes('youtube.com') ? 1500 :
             domain.includes('tiktok.com') ? 1500 :
                 domain.includes('instagram.com') ? 1500 : 800;
-    setTimeout(checkContent, initialDelay);
 
-    // Configuraciones específicas por sitio
+    // Only run initial check if context is still valid after delay
+    const initialCheckTimeout = setTimeout(() => {
+        if (extensionValid && checkContext()) {
+            checkContent();
+        }
+    }, initialDelay);
+
+    // Site-specific configurations
     if (domain.includes('instagram.com')) {
         console.log("[Extension] Inicializando manejadores específicos para Instagram");
 
@@ -948,116 +1224,125 @@ try {
 
     // Para TikTok, agregar manejadores específicos para controles de navegación
     if (domain.includes('tiktok.com')) {
-        // Verificar cuando se hace clic en botones de navegación entre videos
-        document.addEventListener('click', (event) => {
-            if (!checkContext() || checking || redirectInProgress) return;
+        console.log("[Extension] Initializing TikTok-specific handlers");
 
-            // Log para cualquier clic en TikTok
-            console.log("[Extension] Clic en TikTok en elemento:", event.target.tagName);
+        // Add video-specific observers for TikTok
+        // This is crucial for detecting videos in the feed
+        const setupTikTokVideoListeners = () => {
+            const videos = document.querySelectorAll('video');
+            console.log(`[Extension] Setting up TikTok video listeners for ${videos.length} videos`);
 
-            // Buscar botones de navegación típicos de TikTok
-            const esBotonNavegacion =
-                event.target.closest('[data-e2e="arrow-right"]') ||
-                event.target.closest('[data-e2e="arrow-left"]') ||
-                event.target.closest('.video-card') ||  // Contenedor común de videos
-                event.target.closest('.video-feed-item') ||  // Otro contenedor común
-                event.target.closest('button') ||  // Cualquier botón
-                event.target.closest('a[href*="video"]');  // Enlaces a videos
+            videos.forEach(video => {
+                // Use a dataset property to avoid adding multiple listeners to the same video
+                if (!video.dataset.extensionTracked) {
+                    video.dataset.extensionTracked = 'true';
 
-            if (esBotonNavegacion) {
-                console.log("[Extension] Detectado clic en navegación TikTok");
-                // Dar tiempo para que cambie la URL
-                setTimeout(() => {
-                    console.log("[Extension] Verificando después de navegación en TikTok:", location.href);
-                    checkContent();
-                }, 1000);
-            } else {
-                // Verificar de todos modos después de cualquier clic en TikTok
-                // ya que la interfaz varía considerablemente
-                setTimeout(() => {
-                    if (isTikTokVideo()) {
-                        console.log("[Extension] Verificando después de clic general en TikTok");
-                        checkContent();
+                    // Add a unique identifier to each video element
+                    let videoIdentifier = '';
+                    try {
+                        if (video.src || video.currentSrc) {
+                            const srcUrl = video.src || video.currentSrc;
+                            const srcMatch = srcUrl.match(/\/([a-zA-Z0-9_-]{6,})\./);
+                            if (srcMatch && srcMatch[1]) {
+                                videoIdentifier = srcMatch[1];
+                            }
+                        }
+
+                        if (!videoIdentifier) {
+                            const rect = video.getBoundingClientRect();
+                            videoIdentifier = `pos-${Math.round(rect.top)}-${Math.round(rect.left)}-${video.offsetWidth}x${video.offsetHeight}`;
+                        }
+
+                        video.dataset.videoId = videoIdentifier;
+                    } catch (e) {
+                        console.log("[Extension] Error creating video identifier:", e);
+                        video.dataset.videoId = `video-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     }
-                }, 1000);
-            }
-        }, true);
 
-        // También verificar cuando el usuario hace scroll en TikTok (para For You Page)
-        let ultimoScroll = Date.now();
-        window.addEventListener('scroll', () => {
-            // Limitar la frecuencia de verificación (máximo una vez cada 1 segundo en scroll)
-            const ahora = Date.now();
-            if (ahora - ultimoScroll < 1000 || !checkContext() || checking || redirectInProgress) return;
+                    video.addEventListener('play', () => {
+                        console.log("[Extension] TikTok video play event", video.dataset.videoId);
+                        video.dataset.playStarted = Date.now().toString();
+                        setTimeout(() => {
+                            if (!video.paused && video.currentTime > 0) {
+                                checkContent();
+                            }
+                        }, 200);
+                    });
 
-            ultimoScroll = ahora;
-            console.log("[Extension] Detectado scroll en TikTok");
+                    video.addEventListener('timeupdate', (event) => {
+                        const currentVideo = event.target;
+                        const videoId = currentVideo.dataset.videoId;
 
-            setTimeout(() => {
-                if (isTikTokVideo()) {
-                    console.log("[Extension] Verificando después de scroll en TikTok");
-                    checkContent();
+                        if (currentVideo.currentTime > 2 && !redirectInProgress && !checking) {
+                            const videoKey = `tiktok-${videoId || Math.random().toString(36).substr(2, 9)}`;
+
+                            if (!countedContent.has(videoKey)) {
+                                console.log("[Extension] New TikTok video detected:", videoKey);
+                                countedContent.add(videoKey);
+
+                                const username = findNearbyUsername(currentVideo) || 'unknown';
+                                console.log("[Extension] TikTok video from user:", username);
+
+                                checkContent();
+                            }
+                        }
+                    });
                 }
-            }, 500);
-        }, { passive: true });
+            });
+        };
 
-        // Escuchar eventos de reproducción de video específicos para TikTok
-        document.addEventListener('play', (event) => {
-            if (event.target.tagName === 'VIDEO' && !checking && !redirectInProgress) {
-                console.log("[Extension] Video de TikTok iniciado");
-                setTimeout(checkContent, 500);
-            }
-        }, true);
+        // Set up initial listeners
+        setTimeout(setupTikTokVideoListeners, 1000);
 
-        // Observar cambios en video específicos para TikTok
-        const tiktokVideoObserver = new MutationObserver(mutations => {
-            if (!checkContext() || checking || redirectInProgress) {
-                tiktokVideoObserver.disconnect();
-                return;
-            }
+        // And refresh listeners periodically
+        setInterval(setupTikTokVideoListeners, 2000);
 
-            const hayVideos = document.querySelectorAll('video').length > 0;
-            if (hayVideos && isTikTokVideo()) {
-                console.log("[Extension] Cambios detectados en videos de TikTok");
-                setTimeout(checkContent, 800);
+        // Create a TikTok-specific mutation observer for videos
+        const tiktokObserver = new MutationObserver((mutations) => {
+            let shouldCheckForVideos = false;
+
+            mutations.forEach(mutation => {
+                // Check if any videos were added
+                if (mutation.addedNodes.length > 0) {
+                    for (const node of mutation.addedNodes) {
+                        if (node.tagName === 'VIDEO' ||
+                            (node.nodeType === 1 && node.querySelector('video'))) {
+                            shouldCheckForVideos = true;
+                            break;
+                        }
+                    }
+                }
+            });
+
+            if (shouldCheckForVideos) {
+                setupTikTokVideoListeners();
             }
         });
 
-        // Observar cambios en el body para detectar nuevos videos
-        tiktokVideoObserver.observe(document.body, {
+        // Start observing the document for added videos
+        tiktokObserver.observe(document.body, {
             childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['src']
+            subtree: true
         });
 
-        // Almacenar el observer
-        window._extensionTikTokObserver = tiktokVideoObserver;
-
-        // Verificación inicial específica para TikTok
-        setTimeout(() => {
-            if (isTikTokVideo()) {
-                console.log("[Extension] Verificación inicial de TikTok");
-                checkContent();
-            }
-        }, 1000);
+        // Store the observer for cleanup
+        window._extensionTikTokObserver = tiktokObserver;
     }
 
-    // Iniciar verificación periódica para todos los sitios soportados
-    setTimeout(checkPeriodically, 1500);
+    // Start periodic checks
+    stopPeriodicCheck = checkPeriodically();
 
-    // Verificar cada vez que la ventana cambia de tamaño
-    window.addEventListener('resize', () => {
-        if (checkContext() && !checking && !redirectInProgress) {
-            // Más retraso para sitios con problemas de múltiples conteos
-            const resizeDelay =
-                domain.includes('youtube.com') ? 1000 :
-                    domain.includes('tiktok.com') ? 1000 :
-                        domain.includes('instagram.com') ? 1000 : 500;
-            setTimeout(checkContent, resizeDelay);
-        }
-    });
+    // Log successful initialization
+    console.log("[Extension] Successfully initialized content script");
 } catch (error) {
-    console.error("[Extension] Error al inicializar:", error);
+    console.error("[Extension] Error during initialization:", error);
     extensionValid = false;
+
+    // Clean up any resources if initialization fails
+    cleanupResources();
+
+    // Clear any pending timeouts from initialization
+    if (typeof initialCheckTimeout !== 'undefined') {
+        clearTimeout(initialCheckTimeout);
+    }
 }
