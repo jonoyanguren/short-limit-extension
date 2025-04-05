@@ -150,7 +150,6 @@
       .limit-section {
         margin-top: 15px;
         padding-top: 12px;
-        border-top: 1px solid #ddd;
       }
 
       .limit-section h5 {
@@ -173,38 +172,27 @@
         <div class="site-card" data-site="youtube.com">
           <div class="site-icon">▶️</div>
           <div class="site-name">YouTube</div>
-          <div class="site-counter">0/10</div>
+          <div class="site-counter">0/20</div>
         </div>
         <div class="site-card" data-site="instagram.com">
           <div class="site-icon">📸</div>
           <div class="site-name">Instagram</div>
-          <div class="site-counter">0/10</div>
+          <div class="site-counter">0/20</div>
         </div>
         <div class="site-card" data-site="tiktok.com">
           <div class="site-icon">🎵</div>
           <div class="site-name">TikTok</div>
-          <div class="site-counter">0/10</div>
+          <div class="site-counter">0/20</div>
         </div>
       </div>
 
       <div id="site-details">
-        <h4>Configure Limits for All Platforms</h4>
-
-        <label>
-          <strong>Viewing stats for:</strong>
-          <span id="current-site">YouTube</span><br />
-          Content viewed today: <span id="counter">0</span>/<span
-            id="dailyLimit"
-            >10</span
-          >
-        </label>
-
         <div class="limit-section">
           <h5>Set limits for ALL platforms:</h5>
           <!-- Quick limit buttons -->
           <div class="quick-limits">
             <button class="quick-limit-btn" data-limit="5">5</button>
-            <button class="quick-limit-btn" data-limit="20">20</button>
+            <button class="quick-limit-btn active" data-limit="20">20</button>
             <button class="quick-limit-btn" data-limit="50">50</button>
             <button class="quick-limit-btn" data-limit="100">100</button>
           </div>
@@ -218,7 +206,7 @@
               type="number"
               id="limit"
               min="1"
-              value="10"
+              value="20"
               class="full-width"
             />
             <button id="save" class="full-width">Apply to all platforms</button>

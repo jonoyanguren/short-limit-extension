@@ -50,9 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedCard.classList.add('active');
         }
 
-        // Update current site text
-        currentSiteLabel.textContent = getSiteName(currentDomain);
-
         // Update counter for selected site
         updateCounter();
     }
@@ -66,20 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function updateCounter() {
-        // Show loading message
-        counter.textContent = "...";
-        dailyLimitSpan.textContent = "...";
-
         chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
             if (chrome.runtime.lastError) {
                 console.error("[Extension] Error:", chrome.runtime.lastError);
                 debugInfo.textContent = `Error: ${chrome.runtime.lastError.message}`;
                 return;
             }
-
-            // Debug info
-            debugInfo.textContent = `Data: ${JSON.stringify(response)}`;
-            console.log("Response from getStatus:", response);
 
             if (!response) {
                 debugInfo.textContent += " | Empty response!";
@@ -89,15 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const counters = response.counter || {};
             const limits = response.limits || {};
 
-            // Debug specific counters
-            debugInfo.textContent += ` | Domain: ${currentDomain} | Counter: ${counters[currentDomain]} | Limit: ${limits[currentDomain]}`;
-
             // Explicitly check if counter exists for this domain
             const counterValue = typeof counters[currentDomain] !== 'undefined' ? counters[currentDomain] : 0;
-            const limitValue = typeof limits[currentDomain] !== 'undefined' ? limits[currentDomain] : 10;
+            const limitValue = typeof limits[currentDomain] !== 'undefined' ? limits[currentDomain] : 20;
 
-            counter.textContent = counterValue;
-            dailyLimitSpan.textContent = limitValue;
             limitInput.value = limitValue;
 
             // Update active quick limit button

@@ -77,65 +77,6 @@ function checkContext() {
     }
 }
 
-// Log debug information
-function logDebugInfo() {
-    if (!checkContext()) return;
-
-    try {
-        if (domain.includes('instagram.com')) {
-            console.log("[Extension] Debug URL Instagram:", location.href);
-            console.log("[Extension] Pathname:", location.pathname);
-
-            try {
-                const videos = document.querySelectorAll('video');
-                console.log("[Extension] Videos found:", videos.length);
-
-                // Use Array.from with extra safety
-                Array.from(videos).forEach((video, index) => {
-                    try {
-                        if (!document.contains(video)) return;
-
-                        console.log(`[Extension] Video ${index + 1}:`, {
-                            visible: isElementVisible(video),
-                            src: video.src || video.currentSrc || 'no-src',
-                            parentClass: video.parentElement ? video.parentElement.className : 'no-parent',
-                            width: video.offsetWidth,
-                            height: video.offsetHeight
-                        });
-                    } catch (videoError) {
-                        console.log(`[Extension] Error analyzing video ${index + 1}:`, videoError.message);
-                    }
-                });
-            } catch (videosError) {
-                console.log("[Extension] Error getting videos:", videosError.message);
-            }
-
-            // Log Instagram UI elements with extra safety
-            try {
-                console.log("[Extension] Dialogs:", document.querySelectorAll('[role="dialog"]').length);
-            } catch (dialogError) {
-                console.log("[Extension] Error getting dialogs:", dialogError.message);
-            }
-
-            try {
-                console.log("[Extension] Navigation buttons:", document.querySelectorAll('[role="button"]').length);
-            } catch (buttonError) {
-                console.log("[Extension] Error getting buttons:", buttonError.message);
-            }
-        }
-    } catch (error) {
-        console.error("[Extension] Error in logDebugInfo:", error.message);
-
-        if (error.message && (
-            error.message.includes("Extension context invalidated") ||
-            error.message.includes("Invalid extension") ||
-            error.message.includes("Extension context")
-        )) {
-            extensionValid = false;
-        }
-    }
-}
-
 // Check if an element is visible on screen
 function isElementVisible(element) {
     if (!element) return false;
@@ -569,8 +510,6 @@ function checkContent() {
             checking = false;
             return;
         }
-
-        logDebugInfo();
 
         // Debug especial para TikTok
         if (domain.includes('tiktok.com')) {

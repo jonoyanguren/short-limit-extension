@@ -1,8 +1,8 @@
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
         limits: {
-            "youtube.com": 10,
-            "instagram.com": 15,
+            "youtube.com": 20,
+            "instagram.com": 20,
             "tiktok.com": 20
         },
         counter: {},
@@ -87,8 +87,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 // Initialize objects if they don't exist
                 if (!data.limits) data.limits = {
-                    "youtube.com": 10,
-                    "instagram.com": 15,
+                    "youtube.com": 20,
+                    "instagram.com": 20,
                     "tiktok.com": 20
                 };
                 if (!data.counter) data.counter = {};
@@ -102,7 +102,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 // Increment counter for the specific site
                 data.counter[site] = (data.counter[site] || 0) + 1;
-                let currentLimit = data.limits[site] || 10; // Default to 10 if not defined
+                let currentLimit = data.limits[site] || 20; // Default to 20 if not defined
 
                 console.log("[Extension] Counter incremented:", site, data.counter[site], "/", currentLimit);
 
@@ -150,8 +150,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 // Initialize objects if they don't exist
                 if (!data.limits) data.limits = {
-                    "youtube.com": 10,
-                    "instagram.com": 15,
+                    "youtube.com": 20,
+                    "instagram.com": 20,
                     "tiktok.com": 20
                 };
                 if (!data.counter) data.counter = {};
@@ -251,8 +251,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         try {
             chrome.storage.sync.get(['limits'], (data) => {
                 const limits = data.limits || {
-                    "youtube.com": 10,
-                    "instagram.com": 15,
+                    "youtube.com": 20,
+                    "instagram.com": 20,
                     "tiktok.com": 20
                 };
 
