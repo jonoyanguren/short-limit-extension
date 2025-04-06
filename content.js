@@ -289,27 +289,76 @@ function detectInstagramMultimedia() {
     if (!domain.includes('instagram.com')) return false;
 
     try {
-        // Check for Reels
-        if (location.pathname.includes('/reel/')) {
+        // Log for debugging
+        console.log("[Extension] Comprobando contenido de Instagram en:", location.pathname);
+
+        // Check for Reels by URL pattern
+        if (location.pathname.includes('/reels/') || location.pathname.includes('/reel/')) {
+            console.log("[Extension] Detectado Instagram Reel por URL:", location.pathname);
             return true;
         }
 
-        // Check for alternate Reels URL format
-        if (location.pathname.includes('/reels/')) {
-            console.log("[Extension] Detected Instagram reels format URL:", location.pathname);
-            return true;
-        }
-
-        // Check for Stories
+        // Check for Stories by URL pattern
         if (location.pathname.includes('/stories/')) {
+            console.log("[Extension] Detectada Instagram Story por URL:", location.pathname);
             return true;
         }
 
-        // Check if we're in the feed and there are videos playing
-        const videos = Array.from(document.querySelectorAll('video'));
-        return videos.some(video => {
-            return isElementVisible(video) && !video.paused;
-        });
+        // Check for specific section for Reels in the new interface
+        if (document.querySelector('[aria-label*="Reels"]') ||
+            document.querySelector('[data-visualcompletion="loading-state"]')) {
+            console.log("[Extension] Detectada sección de Reels en Instagram");
+            return true;
+        }
+
+        // Enhanced video detection - looking for ANY visible video elements
+        const videos = document.querySelectorAll('video');
+        console.log("[Extension] Elementos de video encontrados:", videos.length);
+
+        // Check if ANY video is visible in the viewport
+        for (const video of videos) {
+            const isVisible = isElementVisible(video);
+            const hasSize = video.offsetWidth > 100;
+            const isPlaying = !video.paused && video.currentTime > 0;
+
+            console.log("[Extension] Video Instagram:", {
+                visible: isVisible,
+                size: video.offsetWidth + 'x' + video.offsetHeight,
+                playing: isPlaying
+            });
+
+            // Consider it multimedia content if the video is visible, has a reasonable size
+            // or is playing or is about to play
+            if ((isVisible && hasSize) || isPlaying) {
+                console.log("[Extension] Detectado video activo en Instagram");
+                return true;
+            }
+        }
+
+        // Check for media viewing dialog (typical for Reels/Stories in feed)
+        const mediaDialog = document.querySelector('[role="dialog"] video, [role="presentation"] video');
+        if (mediaDialog) {
+            console.log("[Extension] Detectado diálogo de visualización de medios en Instagram");
+            return true;
+        }
+
+        // When all else fails, check for specific structural elements that might indicate a Reel/Story
+        const reelIndicators = [
+            '[aria-label*="reel"]',
+            '[data-media-type="GraphVideo"]',
+            'div._abl-',  // Instagram's internal class for video containers
+            'section._aak3' // Common container for story/reel content
+        ];
+
+        for (const selector of reelIndicators) {
+            if (document.querySelector(selector)) {
+                console.log("[Extension] Detectado indicador de Reel/Story:", selector);
+                return true;
+            }
+        }
+
+        console.log("[Extension] No se detectó contenido multimedia en Instagram");
+        return false;
     } catch (error) {
         console.error("[Extension] Error detecting Instagram multimedia:", error);
         return false;
@@ -330,45 +379,116 @@ function iniciarObservadorDeVideos() {
     if (videoObserverStarted || !domain.includes('instagram.com') || !checkContext()) return;
     videoObserverStarted = true;
 
-    console.log("[Extension] Iniciando observador de reproducción de videos");
+    console.log("[Extension] Iniciando observador de reproducción de videos para Instagram");
 
     try {
-        // Observar videos existentes
-        const videos = document.querySelectorAll('video');
-        videos.forEach(video => {
-            video.addEventListener('play', handlePlaybackEvent);
-            video.addEventListener('playing', handlePlaybackEvent);
-        });
+        // Función mejorada para aplicar event listeners a videos
+        const aplicarListeners = (video) => {
+            if (!video.hasAttribute('data-extension-monitored')) {
+                console.log("[Extension] Agregando listeners a video de Instagram:", video);
 
-        // Observar nuevos videos
-        const videoObserver = new MutationObserver(mutations => {
+                // Marcar este video como ya monitoreado
+                video.setAttribute('data-extension-monitored', 'true');
+
+                // Monitorear eventos de reproducción
+                video.addEventListener('play', handlePlaybackEvent);
+                video.addEventListener('playing', handlePlaybackEvent);
+
+                // Añadir también timeupdate para Instagram (detecta reproducción en curso)
+                video.addEventListener('timeupdate', (event) => {
+                    // Solo verificar si el video ha estado reproduciéndose por al menos 1 segundo
+                    if (event.target.currentTime > 1 && !checking && !redirectInProgress) {
+                        console.log("[Extension] Video de Instagram reproduciendo por más de 1 segundo");
+                        setTimeout(checkContent, 50);
+                    }
+                });
+            }
+        };
+
+        // Buscar y monitorear videos existentes
+        const videos = document.querySelectorAll('video');
+        console.log("[Extension] Videos encontrados inicialmente en Instagram:", videos.length);
+        videos.forEach(aplicarListeners);
+
+        // Crear una función para buscar periódicamente videos nuevos
+        const buscarVideosPeriodicamente = () => {
+            if (!checkContext() || !extensionValid) return;
+
+            const nuevosVideos = document.querySelectorAll('video:not([data-extension-monitored])');
+            if (nuevosVideos.length > 0) {
+                console.log("[Extension] Encontrados nuevos videos en Instagram:", nuevosVideos.length);
+                nuevosVideos.forEach(aplicarListeners);
+            }
+        };
+
+        // Programar búsqueda periódica de videos
+        const intervalId = setInterval(buscarVideosPeriodicamente, 1000);
+
+        // Observar cambios en el DOM para detectar nuevos videos
+        const videoObserver = new MutationObserver((mutations) => {
             if (!checkContext()) {
                 videoObserver.disconnect();
+                clearInterval(intervalId);
                 return;
             }
 
+            let hayNuevosVideos = false;
+
             mutations.forEach(mutation => {
+                // Buscar videos añadidos directamente
                 mutation.addedNodes.forEach(node => {
                     if (node.nodeName === 'VIDEO') {
-                        node.addEventListener('play', handlePlaybackEvent);
-                        node.addEventListener('playing', handlePlaybackEvent);
+                        hayNuevosVideos = true;
+                        aplicarListeners(node);
                     } else if (node.nodeType === 1) {
-                        const nuevosVideos = node.querySelectorAll('video');
-                        nuevosVideos.forEach(video => {
-                            video.addEventListener('play', handlePlaybackEvent);
-                            video.addEventListener('playing', handlePlaybackEvent);
-                        });
+                        // Buscar videos dentro de nodos añadidos
+                        const nuevosVideos = node.querySelectorAll('video:not([data-extension-monitored])');
+                        if (nuevosVideos.length > 0) {
+                            hayNuevosVideos = true;
+                            nuevosVideos.forEach(aplicarListeners);
+                        }
                     }
                 });
             });
+
+            // Si se detectaron nuevos videos, verificar el contenido
+            if (hayNuevosVideos && !checking && !redirectInProgress) {
+                console.log("[Extension] Detectados nuevos videos en Instagram, verificando contenido");
+                setTimeout(checkContent, 100);
+            }
         });
 
-        videoObserver.observe(document.body, { childList: true, subtree: true });
+        // Observar todo el body para cambios
+        videoObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['src', 'style', 'class']
+        });
 
-        // Almacenar el observer para poder desconectarlo si es necesario
+        // También detectar cuando el usuario interactúa con la página
+        document.addEventListener('click', (event) => {
+            if (!checkContext() || checking || redirectInProgress) return;
+
+            // Verificar si el clic fue en un elemento relacionado con Stories o Reels
+            const esElementoRelevante =
+                event.target.closest('a[href*="/stories/"]') ||
+                event.target.closest('a[href*="/reel/"]') ||
+                event.target.closest('a[href*="/reels/"]') ||
+                event.target.closest('[role="button"]');
+
+            if (esElementoRelevante) {
+                console.log("[Extension] Detectado clic en elemento relevante de Instagram");
+                // Dar tiempo para que se cargue el contenido
+                setTimeout(checkContent, 500);
+            }
+        });
+
+        // Almacenar el observer y el interval para poder limpiarlos si es necesario
         window._extensionVideoObserver = videoObserver;
+        window._extensionVideoInterval = intervalId;
     } catch (error) {
-        console.error("[Extension] Error al iniciar observador de videos:", error);
+        console.error("[Extension] Error al iniciar observador de videos para Instagram:", error);
         videoObserverStarted = false;
     }
 }
@@ -483,6 +603,15 @@ function cleanupResources() {
                 window._extensionVideoObserver.disconnect();
             } catch (e) {
                 console.log("[Extension] Error disconnecting video observer:", e.message);
+            }
+        }
+
+        // Limpiar intervalos específicos
+        if (window._extensionVideoInterval) {
+            try {
+                clearInterval(window._extensionVideoInterval);
+            } catch (e) {
+                console.log("[Extension] Error clearing video interval:", e.message);
             }
         }
 
@@ -671,7 +800,7 @@ function checkLimit() {
         const counters = response.counter || {};
         const limits = response.limits || {};
 
-        if (counters[domain] >= (limits[domain] || 10) && !redirectInProgress) {
+        if (counters[domain] > (limits[domain] || 10) && !redirectInProgress) {
             redirectInProgress = true;
 
             // Double-check context before sending message

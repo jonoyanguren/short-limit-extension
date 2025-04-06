@@ -178,7 +178,6 @@ button[class*="reset"]:hover {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .site-card {
@@ -250,22 +249,16 @@ button[class*="reset"]:hover {
 #site-details {
   background-color: var(--card-bg);
   border-radius: var(--radius-md);
-  padding: 16px;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
-}
-
-/* Quick limit buttons */
-.limit-section {
-  margin-top: 16px;
-  padding-top: 16px;
+  padding: 0px;
 }
 
 .quick-limits {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 0px;
 }
 
 .quick-limit-btn {

@@ -93,7 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update counter in the card
                 const counterInfo = card.querySelector('.site-counter');
                 if (counterInfo) {
-                    counterInfo.textContent = `${sitecounter}/${siteLimit}`;
+                    // Ensure sitecounter never exceeds siteLimit in the display
+                    const displayCounter = Math.min(sitecounter, siteLimit);
+                    counterInfo.textContent = `${displayCounter}/${siteLimit}`;
 
                     // Visually highlight if close to limit
                     if (sitecounter >= siteLimit) {

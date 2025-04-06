@@ -108,7 +108,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 chrome.storage.sync.set(data, () => {
                     try {
-                        const reached = data.counter[site] >= currentLimit;
+                        const reached = data.counter[site] > currentLimit;
 
                         // If limit reached, open limit reached page in a new tab and close the original
                         if (reached && sender && sender.tab && sender.tab.id) {
