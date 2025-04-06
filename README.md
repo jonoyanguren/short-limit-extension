@@ -1,53 +1,66 @@
-# Daily Content Limit Extension
+# Daily Content Limit
 
-A Chrome extension that helps you limit your daily consumption of short-format content on YouTube, Instagram, and TikTok.
+A browser extension that helps you limit the time you spend consuming short-format content on social media platforms.
+
+## Description
+
+Daily Content Limit is a Chrome extension that allows you to set daily limits on how many short-format videos you can watch on YouTube Shorts, Instagram Reels, and TikTok. The extension was developed over a weekend with the help of AI to create a tool that promotes healthier social media usage habits.
+
+The extension:
+- Tracks your consumption of short-format content across platforms
+- Lets you set custom daily limits
+- Shows a friendly reminder when you've reached your limit
+- Resets automatically at midnight every day
+
+This project aims to help people regain control over their social media usage by limiting the endless scrolling of addictive short-format content.
+
+## Technologies Used
+
+- JavaScript (vanilla)
+- Chrome Extension APIs
+- HTML/CSS for the user interface
+- Content script and background script architecture
+- Local storage for saving user preferences
+
+No external libraries or frameworks were used to keep the extension lightweight and fast.
 
 ## Features
 
-- Set daily limits for short content (YouTube Shorts, Instagram Reels, TikTok videos)
-- Track your usage across platforms
-- Receive notifications when approaching your limit
-- Block content when your daily limit is reached
-- Configurable limits per platform or globally
+- **Cross-platform tracking**: Works across YouTube, Instagram, and TikTok
+- **Customizable limits**: Set different limits for each platform or the same for all
+- **Minimalist UI**: Clean interface that's easy to understand
+- **Non-intrusive**: Only activates when viewing short-format content
+- **Privacy-focused**: All data is stored locally on your device
+
+## How It Works
+
+The extension uses content scripts to detect when you're viewing short-format content on the supported platforms. It counts each video you watch and compares it to your daily limit. When you reach your limit, it redirects you to a friendly limit-reached page that shows how much time is left until your counter resets.
 
 ## Installation
 
-1. Clone this repository or download and extract the ZIP file
-2. Open Chrome and go to `chrome://extensions/`
+1. Clone this repository
+2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" in the top-right corner
 4. Click "Load unpacked" and select the extension directory
-5. The extension should now be installed and active
-
-## Icon Generation
-
-The extension includes SVG versions of icons in the `icons/` directory. To generate PNG versions:
-
-1. Open each SVG file in a browser
-2. Right-click and select "Save As" 
-3. Choose PNG format and save with the same filename but .png extension
-
-Alternatively, you can use the provided `convert-icons.js` script if you have Node.js installed:
-
-```bash
-npm install sharp fs-extra
-node convert-icons.js
-```
-
-## Usage
-
-1. Click the extension icon to open the popup
-2. Set your daily limits for content consumption
-3. Browse normally - the extension will track your usage
-4. When you reach your limit, you'll be redirected to a limit-reached page
 
 ## Development
 
-- `popup.html` & `popup.js` - The UI for configuring limits
-- `content.js` - Monitors the content you view on supported platforms
-- `background.js` - Tracks usage and manages limits
-- `limit-reached.html` & `limit-reached.js` - Shown when limits are reached
-- `style.css` - Styling for the popup and other components
-- `icons/` - Extension icons in various sizes
+This extension was developed over a weekend with the assistance of AI tools to speed up the development process. The core functionality was designed to be lightweight and modular to make future updates and improvements easier.
+
+## Future Plans
+
+- Support for more platforms
+- Analytics to show usage patterns
+- Time-based limits in addition to content-count limits
+- Dark mode support
+
+## Contact
+
+- Developer: Jon Oyanguren
+- Email: jonoyanguren@gmail.com
+- Website: [jonoyanguren.com](https://jonoyanguren.com)
+
+Feel free to contribute to this project or reach out with suggestions for improvements!
 
 ## License
 
