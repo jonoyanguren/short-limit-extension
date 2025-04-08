@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add button to reset counters
     const resetBtn = document.createElement('button');
     resetBtn.classList.add('full-width');
-    resetBtn.style.marginTop = '10px';
+    resetBtn.style.marginTop = '0px';
     resetBtn.style.backgroundColor = '#f44336';
     resetBtn.textContent = 'Reset counters';
     resetBtn.addEventListener('click', () => {
